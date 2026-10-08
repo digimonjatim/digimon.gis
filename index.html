@@ -38,19 +38,22 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #login input{background:#fff;color:var(--ink);border-color:#c5cfcb}
 #login button{background:var(--ink);color:#fff}
 .pop button{margin-top:6px;padding:4px 8px;background:#fff;color:#a02020;border-color:#d8b4b4}
-#modal{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:9997;padding:12px}
-#modal .box{background:#fff;color:var(--ink);border-radius:10px;width:min(640px,100%);max-height:94vh;overflow:auto;padding:20px}
-#modal h2{color:var(--ink);font-size:16px;margin:0 0 4px}
-#modal .sub{color:#5b706d;font-size:12px;margin-bottom:14px}
-#modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-#modal .full{grid-column:1/-1}
-#modal label{display:block;font-size:12px;color:#5b706d;margin-bottom:3px}
-#modal input{background:#fff;color:var(--ink);border-color:#c5cfcb}
-#modal input[readonly]{background:#eef2f0}
-#modal hr{border:0;border-top:1px solid #dde5e2;margin:14px 0}
-#modal .act{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-#modal .act button{flex:none;min-width:90px;color:var(--ink);background:#fff;border-color:#c5cfcb}
-#modal .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.mdl{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:9997;padding:12px}
+.mdl .box{background:#fff;color:var(--ink);border-radius:10px;width:min(640px,100%);max-height:94vh;overflow:auto;padding:20px}
+.mdl h2{color:var(--ink);font-size:16px;margin:0 0 4px}
+.mdl .sub{color:#5b706d;font-size:12px;margin-bottom:14px}
+.mdl .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mdl .full{grid-column:1/-1}
+.mdl label{display:block;font-size:12px;color:#5b706d;margin-bottom:3px}
+.mdl input{background:#fff;color:var(--ink);border-color:#c5cfcb}
+.mdl input[readonly]{background:#eef2f0}
+.mdl hr{border:0;border-top:1px solid #dde5e2;margin:14px 0}
+.mdl .act{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.mdl .act button{flex:none;min-width:90px;color:var(--ink);background:#fff;border-color:#c5cfcb}
+.mdl .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
+.pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
+.pop a{color:#0e7c7b}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
 </style>
 </head>
@@ -68,6 +71,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <div id="app">
   <aside>
     <h1>DIGIMON GIS</h1>
+    <div id="who" style="color:var(--mute);font-size:12px;margin-top:-10px"></div>
     <section>
       <h2>Proyek FTTH</h2>
       <select id="project" aria-label="Proyek"></select>
@@ -82,6 +86,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <button id="addOdp">Tambah ODP</button>
         <button id="addPros">Tambah calon</button>
       </div>
+      <button id="editPts" type="button" style="margin-top:8px;width:100%">Geser titik (edit posisi)</button>
       <div id="hint" style="margin-top:8px">Pilih mode, lalu klik peta. Klik tombol lagi untuk batal.</div>
     </section>
     <section>
@@ -98,7 +103,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   </aside>
   <div id="map"></div>
 </div>
-<div id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+<div id="modal" class="mdl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="box">
     <h2 id="mTitle">Form Order Desain FTTH</h2>
     <div class="sub">Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.</div>
@@ -122,6 +127,13 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <div class="full"><label for="fKab">Kabupaten/Kota</label><input id="fKab" readonly></div>
     </div>
     <div class="act"><button id="mCancel" type="button">Batal</button><button id="mSave" type="button" class="pri">Simpan</button></div>
+  </div>
+</div>
+<div id="modal2" class="mdl" role="dialog" aria-modal="true" aria-labelledby="m2Title">
+  <div class="box">
+    <h2 id="m2Title"></h2><div class="sub" id="m2Sub"></div>
+    <div class="grid" id="m2Body"></div>
+    <div class="act"><button id="m2Cancel" type="button">Batal</button><button id="m2Save" type="button" class="pri">Simpan</button></div>
   </div>
 </div>
 <div id="toast" role="status"></div>
@@ -151,16 +163,18 @@ const map = L.map('map',{preferCanvas:true}).setView([-2.5,118],5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
 const layers = {customer:L.layerGroup().addTo(map), odp:L.layerGroup().addTo(map), prospect:L.layerGroup().addTo(map)};
 const areas = new L.FeatureGroup().addTo(map);
-map.addControl(new L.Control.Draw({
+const drawCtl=new L.Control.Draw({
   edit:{featureGroup:areas},
   draw:{polygon:{allowIntersection:false,shapeOptions:{color:'#0e7c7b'}},rectangle:{shapeOptions:{color:'#0e7c7b'}},
         polyline:false,circle:false,marker:false,circlemarker:false}
-}));
+});
+map.addControl(drawCtl);
 document.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{
   const l=layers[c.dataset.k]; c.checked?map.addLayer(l):map.removeLayer(l)});
 
 // ---- Titik ----
 async function loadPoints(){
+  if(editPts&&map.getZoom()<15){editPts=false;$('editPts').classList.remove('on')}
   if(map.getZoom()<MIN_ZOOM){Object.values(layers).forEach(l=>l.clearLayers());$('count').textContent=`Zoom in (min. ${MIN_ZOOM}) untuk melihat titik`;return}
   const b=map.getBounds();
   const {data,error}=await sb.rpc('get_points',{w:b.getWest(),s:b.getSouth(),e:b.getEast(),n:b.getNorth(),lim:LIMIT});
@@ -168,7 +182,10 @@ async function loadPoints(){
   Object.values(layers).forEach(l=>l.clearLayers());
   data.features.forEach(f=>{
     const p=f.properties,[x,y]=f.geometry.coordinates;
-    const m=L.circleMarker([y,x],{radius:p.kind==='customer'?4:7,color:'#fff',weight:1,fillColor:COL[p.kind],fillOpacity:.95});
+    const m=editPts
+      ? L.marker([y,x],{draggable:true,icon:L.divIcon({className:'',iconSize:[14,14],html:`<span style="display:block;width:14px;height:14px;border-radius:50%;background:${COL[p.kind]};border:2px solid #fff;box-shadow:0 0 0 1px #0006"></span>`})})
+      : L.circleMarker([y,x],{radius:p.kind==='customer'?4:7,color:'#fff',weight:1,fillColor:COL[p.kind],fillOpacity:.95});
+    if(editPts) m.on('dragend',ev=>movePoint(p.id,ev.target.getLatLng()));
     m.bindPopup(`<div class="pop"><b>${LABEL[p.kind]}</b><br>${p.un_id?'UN ID: '+esc(p.un_id)+'<br>':''}${p.name?esc(p.name)+'<br>':''}${y.toFixed(6)}, ${x.toFixed(6)}<br><button onclick="delPoint('${p.id}')">Hapus titik</button></div>`);
     layers[p.kind].addLayer(m);
   });
@@ -197,10 +214,10 @@ map.on('click',async e=>{
 
 // ---- Polygon (CRUD) ----
 const areaLayer = f => {
-  const l=L.geoJSON(f,{style:{color:'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
+  const l=L.geoJSON(f,{style:{color:SC[f.properties.status]||'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
   l.feature=f;
   const p=f.properties;
-  l.bindPopup(`<div class="pop"><b>${esc(p.name)}</b><br>Pelanggan: ${p.customer}<br>ODP: ${p.odp}<br>Calon: ${p.prospect}<br><b>${esc(p.code)}</b> ${p.sto_code?'· STO '+esc(p.sto_code):''}<br><button style="color:#0f2a2c;border-color:#c5cfcb" onclick="editOrder('${p.id}')">Form order</button></div>`);
+  l.bindPopup(()=>areaPopup(p));
   return l;
 };
 async function loadAreas(){
@@ -216,7 +233,7 @@ function renderList(fs){
   if(!fs.length){box.innerHTML='<span style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span>';return}
   fs.forEach(f=>{
     const p=f.properties,d=document.createElement('div');d.className='area';
-    d.innerHTML=`${esc(p.name)}<small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
+    d.innerHTML=`${esc(p.name)} ${badge(p.status)}<small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
     d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id){map.fitBounds(l.getBounds());l.openPopup()}})};
     box.appendChild(d);
   });
@@ -242,6 +259,89 @@ map.on(L.Draw.Event.DELETED, async e=>{
   const {error}=await sb.from('project_areas').delete().in('id',ids);
   error?toast(error.message):toast('Area dihapus'); loadAreas();
 });
+// ---- Peran & status ----
+let ROLE=null, editPts=false, dlgSave=null;
+const SL={submitted:'Submitted',revision:'Revision',designed:'Designed',completed:'Completed'};
+const SC={submitted:'#2563eb',revision:'#d97706',designed:'#7c3aed',completed:'#15803d'};
+const badge=st=>`<span class="st" style="background:${SC[st]||'#666'}">${SL[st]||esc(st)}</span>`;
+const isPlan=()=>ROLE==='planner'||ROLE==='admin', isDes=()=>ROLE==='designer'||ROLE==='admin';
+function applyRole(){
+  $('who').textContent=ROLE?('Peran: '+({planner:'Planner (User A)',designer:'Designer (User B)',admin:'Admin'}[ROLE])):'Peran belum diatur';
+  if(!ROLE) toast('Akun belum punya peran. Hubungi admin.');
+  if(!isPlan()){
+    map.removeControl(drawCtl);
+    ['addOdp','addPros','editPts','newProject'].forEach(id=>$(id).style.display='none');
+  }
+}
+function areaPopup(p){
+  let h=`<div class="pop"><b>${esc(p.name)}</b> ${badge(p.status)}<br>${esc(p.code||'')}${p.sto_code?' · STO '+esc(p.sto_code):''}<br>Pelanggan: ${p.customer} · ODP: ${p.odp} · Calon: ${p.prospect}`;
+  if(p.dsi_id) h+=`<br>DSI: ${esc(p.dsi_id)} (${esc(p.dsi_name)})`;
+  if(p.kml_path) h+=`<br><a href="#" onclick="dl('${esc(p.kml_path)}');return false">KML</a> · <a href="#" onclick="dl('${esc(p.boq_path)}');return false">BOQ</a>`;
+  h+='<br>';
+  if(isPlan()&&p.status!=='completed') h+=`<button class="n" onclick="editOrder('${p.id}')">Form order</button>`;
+  if(isDes()&&['submitted','revision','designed'].includes(p.status)) h+=`<button class="n" onclick="uploadDesign('${p.id}')">Upload desain</button>`;
+  if(isPlan()&&p.status==='designed') h+=`<button class="n" onclick="inputDsi('${p.id}')">Input DSI</button>`;
+  return h+'</div>';
+}
+async function dl(path){
+  const {data,error}=await sb.storage.from('designs').createSignedUrl(path,60);
+  error?toast(error.message):window.open(data.signedUrl,'_blank');
+}
+function openDialog(title,sub,body,onSave){
+  $('m2Title').textContent=title;$('m2Sub').textContent=sub;$('m2Body').innerHTML=body;
+  dlgSave=onSave;$('modal2').style.display='flex';
+}
+const closeDialog=()=>{$('modal2').style.display='none';dlgSave=null};
+$('m2Cancel').onclick=closeDialog;
+$('modal2').addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog()});
+$('m2Save').onclick=async()=>{
+  if(!dlgSave) return; $('m2Save').disabled=true;
+  try{await dlgSave()}catch(err){toast(err.message)}finally{$('m2Save').disabled=false}
+};
+function uploadDesign(id){
+  map.closePopup();
+  openDialog('Upload desain','Kedua file wajib. Setelah berhasil, status menjadi Designed.',
+    `<div class="full"><label for="uKml">File desain (.kml)</label><input id="uKml" type="file" accept=".kml"></div>
+     <div class="full"><label for="uBoq">File BOQ (.xlsx)</label><input id="uBoq" type="file" accept=".xlsx"></div>`,
+    async()=>{
+      const k=$('uKml').files[0], b=$('uBoq').files[0];
+      if(!k||!b) return toast('Pilih file KML dan BOQ');
+      if(!/\.kml$/i.test(k.name)||!/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
+      const t=Date.now(), safe=n=>n.replace(/[^A-Za-z0-9._-]/g,'_');
+      const kp=`${id}/${t}_${safe(k.name)}`, bp=`${id}/${t}_${safe(b.name)}`, st=sb.storage.from('designs');
+      let r=await st.upload(kp,k,{contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) return toast(r.error.message);
+      r=await st.upload(bp,b); if(r.error) return toast(r.error.message);
+      const {error}=await sb.rpc('mark_designed',{p_area:id,p_kml:kp,p_boq:bp});
+      if(error) return toast(error.message);
+      closeDialog(); toast('Desain terupload. Status: Designed'); loadAreas();
+    });
+}
+function inputDsi(id){
+  map.closePopup();
+  openDialog('Input DSI','Setelah disimpan, status menjadi Completed dan polygon terkunci.',
+    `<div><label for="dId">DSI ID</label><input id="dId" maxlength="40"></div>
+     <div><label for="dNm">DSI Name</label><input id="dNm" maxlength="120"></div>`,
+    async()=>{
+      const a=$('dId').value.trim(), n=$('dNm').value.trim();
+      if(!a||!n) return toast('DSI ID dan DSI Name wajib diisi');
+      const {error}=await sb.rpc('complete_area',{p_area:id,p_dsi_id:a,p_dsi_name:n});
+      if(error) return toast(error.message);
+      closeDialog(); toast('Status: Completed'); loadAreas();
+    });
+}
+// Geser posisi titik (ODP / pelanggan / calon) -> polygon terkait menjadi Revision
+$('editPts').onclick=()=>{
+  if(!editPts&&map.getZoom()<15) return toast('Zoom in (min. 15) untuk menggeser titik');
+  editPts=!editPts; $('editPts').classList.toggle('on',editPts);
+  if(editPts) setMode(null);
+  loadPoints();
+};
+async function movePoint(id,ll){
+  const {error}=await sb.from('points').update({lat:ll.lat,lng:ll.lng}).eq('id',id);
+  toast(error?error.message:'Posisi diperbarui');
+  loadPoints(); loadAreas();
+}
+
 // ---- Form order (modal) ----
 let STO=[], order=null;
 async function loadSto(){
@@ -287,7 +387,7 @@ $('mSave').onclick=async()=>{
   if(order.id){ ({error}=await sb.from('project_areas').update({name,sto_code:sto}).eq('id',order.id)); }
   else { ({error}=await sb.rpc('upsert_area',{p_id:null,p_project:project,p_name:name,p_geojson:order.geo,p_code:order.code,p_sto:sto})); }
   if(error) return toast(error.message);
-  closeOrder(); toast('Order desain disimpan'); loadAreas();
+  closeOrder(); toast('Order disubmit. Status: Submitted'); loadAreas();
 };
 
 // ---- Proyek ----
@@ -318,6 +418,7 @@ map.on('moveend',debounce(loadPoints));
 // ---- Auth ----
 async function start(){
   $('login').style.display='none';
+  ROLE=(await sb.rpc('my_role')).data; applyRole();
   await Promise.all([loadProjects(),loadSto()]);
   const {data}=await sb.rpc('data_extent');
   if(data) map.fitBounds([[data.s,data.w],[data.n,data.e]]); else loadPoints();
