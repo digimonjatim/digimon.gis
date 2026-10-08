@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DIGIMON GIS</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0f2a2c;--side:#0f2a2c;--paper:#f2f4f1;--line:#2c4a4c;--text:#e6efec;--mute:#8fa9a6;
+--cust:#4b8f6b;--odp:#e8731a;--pros:#2563eb;--poly:#0e7c7b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px}
+#app{display:grid;grid-template-columns:300px 1fr;height:100%}
+aside{background:var(--side);color:var(--text);padding:16px;overflow:auto;display:flex;flex-direction:column;gap:18px}
+h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
+h2{font-size:13px;margin:0 0 8px;font-weight:600;color:var(--mute)}
+select,button,input{font:inherit}
+select,input{width:100%;padding:8px;border-radius:6px;border:1px solid var(--line);background:#143538;color:var(--text)}
+button{cursor:pointer;border:1px solid var(--line);background:#143538;color:var(--text);padding:8px 10px;border-radius:6px}
+button:hover{background:#1b4549}
+button.on{background:var(--text);color:var(--ink);border-color:var(--text)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #7fe0d4;outline-offset:2px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.lg{display:flex;align-items:center;gap:8px;margin:6px 0}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+#areas{display:flex;flex-direction:column;gap:6px}
+.area{padding:8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.area:hover{background:#143538}
+.area small{color:var(--mute);display:block;margin-top:2px}
+#hint{color:var(--mute);font-size:12px}
+#map{height:100%}
+#map.add{cursor:crosshair}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:6px;display:none;z-index:9999}
+#login{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:9998}
+#login form{width:300px;display:flex;flex-direction:column;gap:10px;color:var(--ink)}
+#login input{background:#fff;color:var(--ink);border-color:#c5cfcb}
+#login button{background:var(--ink);color:#fff}
+.pop button{margin-top:6px;padding:4px 8px;background:#fff;color:#a02020;border-color:#d8b4b4}
+@media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
+</style>
+</head>
+<body>
+<div id="login">
+  <form id="loginForm">
+    <h1>DIGIMON GIS</h1>
+    <input id="em" type="email" placeholder="Email" required autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" required autocomplete="current-password">
+    <button>Masuk</button>
+    <span id="lerr" style="color:#a02020"></span>
+  </form>
+</div>
+
+<div id="app">
+  <aside>
+    <h1>DIGIMON GIS</h1>
+    <section>
+      <h2>Proyek FTTH</h2>
+      <select id="project" aria-label="Proyek"></select>
+      <div class="row" style="margin-top:8px">
+        <button id="newProject">Proyek baru</button>
+        <button id="logout">Keluar</button>
+      </div>
+    </section>
+    <section>
+      <h2>Tambah titik</h2>
+      <div class="row">
+        <button id="addOdp">Tambah ODP</button>
+        <button id="addPros">Tambah calon</button>
+      </div>
+      <div id="hint" style="margin-top:8px">Pilih mode, lalu klik peta. Klik tombol lagi untuk batal.</div>
+    </section>
+    <section>
+      <h2>Layer</h2>
+      <label class="lg"><input type="checkbox" data-k="customer" checked style="width:auto"><span class="dot" style="background:var(--cust)"></span>Pelanggan (UN ID)</label>
+      <label class="lg"><input type="checkbox" data-k="odp" checked style="width:auto"><span class="dot" style="background:var(--odp)"></span>ODP</label>
+      <label class="lg"><input type="checkbox" data-k="prospect" checked style="width:auto"><span class="dot" style="background:var(--pros)"></span>Calon pelanggan</label>
+      <div id="count" style="color:var(--mute);font-size:12px"></div>
+    </section>
+    <section>
+      <h2>Area proyek</h2>
+      <div id="areas"><span id="empty" style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span></div>
+    </section>
+  </aside>
+  <div id="map"></div>
+</div>
+<div id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ====== KONFIGURASI ======
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_KEY = 'YOUR_ANON_KEY';   // anon key aman di frontend karena RLS aktif
+const MIN_ZOOM = 12, LIMIT = 5000;
+// =========================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
+const LABEL = {customer:'Pelanggan', odp:'ODP', prospect:'Calon pelanggan'};
+let mode = null, project = null, timer;
+
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)}
+const debounce=(fn,ms=300)=>(...a)=>{clearTimeout(timer);timer=setTimeout(()=>fn(...a),ms)};
+
+// ---- Peta ----
+const map = L.map('map',{preferCanvas:true}).setView([-2.5,118],5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+const layers = {customer:L.layerGroup().addTo(map), odp:L.layerGroup().addTo(map), prospect:L.layerGroup().addTo(map)};
+const areas = new L.FeatureGroup().addTo(map);
+map.addControl(new L.Control.Draw({
+  edit:{featureGroup:areas},
+  draw:{polygon:{allowIntersection:false,shapeOptions:{color:'#0e7c7b'}},rectangle:{shapeOptions:{color:'#0e7c7b'}},
+        polyline:false,circle:false,marker:false,circlemarker:false}
+}));
+document.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{
+  const l=layers[c.dataset.k]; c.checked?map.addLayer(l):map.removeLayer(l)});
+
+// ---- Titik ----
+async function loadPoints(){
+  if(map.getZoom()<MIN_ZOOM){Object.values(layers).forEach(l=>l.clearLayers());$('count').textContent=`Zoom in (min. ${MIN_ZOOM}) untuk melihat titik`;return}
+  const b=map.getBounds();
+  const {data,error}=await sb.rpc('get_points',{w:b.getWest(),s:b.getSouth(),e:b.getEast(),n:b.getNorth(),lim:LIMIT});
+  if(error) return toast('Gagal memuat titik: '+error.message);
+  Object.values(layers).forEach(l=>l.clearLayers());
+  data.features.forEach(f=>{
+    const p=f.properties,[x,y]=f.geometry.coordinates;
+    const m=L.circleMarker([y,x],{radius:p.kind==='customer'?4:7,color:'#fff',weight:1,fillColor:COL[p.kind],fillOpacity:.95});
+    m.bindPopup(`<div class="pop"><b>${LABEL[p.kind]}</b><br>${p.un_id?'UN ID: '+esc(p.un_id)+'<br>':''}${p.name?esc(p.name)+'<br>':''}${y.toFixed(6)}, ${x.toFixed(6)}<br><button onclick="delPoint('${p.id}')">Hapus titik</button></div>`);
+    layers[p.kind].addLayer(m);
+  });
+  $('count').textContent=`${data.features.length} titik di layar`+(data.features.length>=LIMIT?` (dibatasi ${LIMIT}, zoom in)`:'');
+}
+async function delPoint(id){
+  if(!confirm('Hapus titik ini?')) return;
+  const {error}=await sb.from('points').delete().eq('id',id);
+  error?toast(error.message):(map.closePopup(),loadPoints());
+}
+function setMode(m){
+  mode=(mode===m)?null:m;
+  $('addOdp').classList.toggle('on',mode==='odp');
+  $('addPros').classList.toggle('on',mode==='prospect');
+  $('map').classList.toggle('add',!!mode);
+}
+$('addOdp').onclick=()=>setMode('odp');
+$('addPros').onclick=()=>setMode('prospect');
+map.on('click',async e=>{
+  if(!mode) return;
+  const name=prompt(mode==='odp'?'Nama/kode ODP:':'Nama calon pelanggan:');
+  if(name===null) return;
+  const {error}=await sb.from('points').insert({kind:mode,name:name.trim()||null,lat:e.latlng.lat,lng:e.latlng.lng});
+  error?toast(error.message):(toast(LABEL[mode]+' ditambahkan'),loadPoints());
+});
+
+// ---- Polygon (CRUD) ----
+const areaLayer = f => {
+  const l=L.geoJSON(f,{style:{color:'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
+  l.feature=f;
+  const p=f.properties;
+  l.bindPopup(`<div class="pop"><b>${esc(p.name)}</b><br>Pelanggan: ${p.customer}<br>ODP: ${p.odp}<br>Calon: ${p.prospect}<br><button style="color:#0f2a2c;border-color:#c5cfcb" onclick="renameArea('${p.id}','${esc(p.name).replace(/'/g,'')}')">Ubah nama</button></div>`);
+  return l;
+};
+async function loadAreas(){
+  if(!project){areas.clearLayers();renderList([]);return}
+  const {data,error}=await sb.rpc('get_areas',{p_project:project});
+  if(error) return toast(error.message);
+  areas.clearLayers();
+  data.features.forEach(f=>areas.addLayer(areaLayer(f)));
+  renderList(data.features);
+}
+function renderList(fs){
+  const box=$('areas'); box.innerHTML='';
+  if(!fs.length){box.innerHTML='<span style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span>';return}
+  fs.forEach(f=>{
+    const p=f.properties,d=document.createElement('div');d.className='area';
+    d.innerHTML=`${esc(p.name)}<small>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
+    d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id){map.fitBounds(l.getBounds());l.openPopup()}})};
+    box.appendChild(d);
+  });
+}
+const saveArea=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry});
+map.on(L.Draw.Event.CREATED, async e=>{
+  if(!project) return toast('Pilih atau buat proyek dulu');
+  const name=prompt('Nama area:','Area '+(areas.getLayers().length+1));
+  if(name===null) return;
+  const {error}=await saveArea(null,name.trim(),e.layer);
+  error?toast(error.message):(toast('Area disimpan'),loadAreas());
+});
+map.on(L.Draw.Event.EDITED, async e=>{
+  for(const l of e.layers.getLayers()){
+    const {error}=await saveArea(l.feature.properties.id,l.feature.properties.name,l);
+    if(error) toast(error.message);
+  }
+  toast('Perubahan area disimpan'); loadAreas();
+});
+map.on(L.Draw.Event.DELETED, async e=>{
+  const ids=e.layers.getLayers().map(l=>l.feature.properties.id);
+  const {error}=await sb.from('project_areas').delete().in('id',ids);
+  error?toast(error.message):toast('Area dihapus'); loadAreas();
+});
+async function renameArea(id,old){
+  const name=prompt('Nama area:',old); if(!name) return;
+  const {error}=await sb.from('project_areas').update({name:name.trim()}).eq('id',id);
+  error?toast(error.message):(map.closePopup(),loadAreas());
+}
+
+// ---- Proyek ----
+async function loadProjects(){
+  const {data,error}=await sb.from('projects').select('id,name').order('created_at');
+  if(error) return toast(error.message);
+  const s=$('project'); s.innerHTML=data.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')||'<option value="">(belum ada proyek)</option>';
+  project=data.length?(data.find(p=>p.id===project)?.id||data[0].id):null; s.value=project||'';
+  loadAreas();
+}
+$('project').onchange=e=>{project=e.target.value||null;loadAreas()};
+$('newProject').onclick=async()=>{
+  const name=prompt('Nama proyek FTTH:'); if(!name) return;
+  const {data,error}=await sb.from('projects').insert({name:name.trim()}).select().single();
+  if(error) return toast(error.message);
+  project=data.id; loadProjects();
+};
+
+// ---- Realtime ----
+function subscribe(){
+  sb.channel('live')
+    .on('postgres_changes',{event:'*',schema:'public',table:'points'},debounce(loadPoints,500))
+    .on('postgres_changes',{event:'*',schema:'public',table:'project_areas'},debounce(loadAreas,500))
+    .subscribe();
+}
+map.on('moveend',debounce(loadPoints));
+
+// ---- Auth ----
+async function start(){
+  $('login').style.display='none';
+  await loadProjects();
+  const {data}=await sb.rpc('data_extent');
+  if(data) map.fitBounds([[data.s,data.w],[data.n,data.e]]); else loadPoints();
+  subscribe();
+}
+$('loginForm').onsubmit=async e=>{
+  e.preventDefault();
+  const {error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});
+  error?$('lerr').textContent='Email atau password salah':start();
+};
+$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
+sb.auth.getSession().then(({data})=>{if(data.session) start()});
+</script>
+</body>
+</html>
