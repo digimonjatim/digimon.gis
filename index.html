@@ -38,6 +38,19 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #login input{background:#fff;color:var(--ink);border-color:#c5cfcb}
 #login button{background:var(--ink);color:#fff}
 .pop button{margin-top:6px;padding:4px 8px;background:#fff;color:#a02020;border-color:#d8b4b4}
+#modal{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:9997;padding:12px}
+#modal .box{background:#fff;color:var(--ink);border-radius:10px;width:min(640px,100%);max-height:94vh;overflow:auto;padding:20px}
+#modal h2{color:var(--ink);font-size:16px;margin:0 0 4px}
+#modal .sub{color:#5b706d;font-size:12px;margin-bottom:14px}
+#modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#modal .full{grid-column:1/-1}
+#modal label{display:block;font-size:12px;color:#5b706d;margin-bottom:3px}
+#modal input{background:#fff;color:var(--ink);border-color:#c5cfcb}
+#modal input[readonly]{background:#eef2f0}
+#modal hr{border:0;border-top:1px solid #dde5e2;margin:14px 0}
+#modal .act{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+#modal .act button{flex:none;min-width:90px;color:var(--ink);background:#fff;border-color:#c5cfcb}
+#modal .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
 </style>
 </head>
@@ -84,6 +97,32 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     </section>
   </aside>
   <div id="map"></div>
+</div>
+<div id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="box">
+    <h2 id="mTitle">Form Order Desain FTTH</h2>
+    <div class="sub">Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.</div>
+    <div class="grid">
+      <div><label for="fCode">Polygon ID</label><input id="fCode" readonly></div>
+      <div><label for="fName">Nama Polygon</label><input id="fName" maxlength="80"></div>
+      <div><label for="fCust">Total Pelanggan</label><input id="fCust" readonly></div>
+      <div><label for="fOdp">Total ODP</label><input id="fOdp" readonly></div>
+    </div>
+    <hr>
+    <div class="grid">
+      <div class="full"><label for="fSto">STO (ketik kode atau nama)</label><input id="fSto" list="stoList" autocomplete="off" placeholder="mis. BWG atau Banyuwangi"><datalist id="stoList"></datalist></div>
+      <div><label for="fNama">Nama STO</label><input id="fNama" readonly></div>
+      <div><label for="fArea">Area</label><input id="fArea" readonly></div>
+      <div><label for="fReg">Regional</label><input id="fReg" readonly></div>
+      <div><label for="fBranch">Branch</label><input id="fBranch" readonly></div>
+      <div><label for="fCluster">Cluster</label><input id="fCluster" readonly></div>
+      <div><label for="fWok">WOK</label><input id="fWok" readonly></div>
+      <div><label for="fDist">District</label><input id="fDist" readonly></div>
+      <div><label for="fSub">Sub District</label><input id="fSub" readonly></div>
+      <div class="full"><label for="fKab">Kabupaten/Kota</label><input id="fKab" readonly></div>
+    </div>
+    <div class="act"><button id="mCancel" type="button">Batal</button><button id="mSave" type="button" class="pri">Simpan</button></div>
+  </div>
 </div>
 <div id="toast" role="status"></div>
 
@@ -161,7 +200,7 @@ const areaLayer = f => {
   const l=L.geoJSON(f,{style:{color:'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
   l.feature=f;
   const p=f.properties;
-  l.bindPopup(`<div class="pop"><b>${esc(p.name)}</b><br>Pelanggan: ${p.customer}<br>ODP: ${p.odp}<br>Calon: ${p.prospect}<br><button style="color:#0f2a2c;border-color:#c5cfcb" onclick="renameArea('${p.id}','${esc(p.name).replace(/'/g,'')}')">Ubah nama</button></div>`);
+  l.bindPopup(`<div class="pop"><b>${esc(p.name)}</b><br>Pelanggan: ${p.customer}<br>ODP: ${p.odp}<br>Calon: ${p.prospect}<br><b>${esc(p.code)}</b> ${p.sto_code?'· STO '+esc(p.sto_code):''}<br><button style="color:#0f2a2c;border-color:#c5cfcb" onclick="editOrder('${p.id}')">Form order</button></div>`);
   return l;
 };
 async function loadAreas(){
@@ -177,22 +216,23 @@ function renderList(fs){
   if(!fs.length){box.innerHTML='<span style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span>';return}
   fs.forEach(f=>{
     const p=f.properties,d=document.createElement('div');d.className='area';
-    d.innerHTML=`${esc(p.name)}<small>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
+    d.innerHTML=`${esc(p.name)}<small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
     d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id){map.fitBounds(l.getBounds());l.openPopup()}})};
     box.appendChild(d);
   });
 }
-const saveArea=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry});
+const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
 map.on(L.Draw.Event.CREATED, async e=>{
   if(!project) return toast('Pilih atau buat proyek dulu');
-  const name=prompt('Nama area:','Area '+(areas.getLayers().length+1));
-  if(name===null) return;
-  const {error}=await saveArea(null,name.trim(),e.layer);
-  error?toast(error.message):(toast('Area disimpan'),loadAreas());
+  const geo=e.layer.toGeoJSON().geometry;
+  const [{data:cnt,error:e1},{data:code,error:e2}]=await Promise.all([
+    sb.rpc('count_in_geojson',{p_geojson:geo}), sb.rpc('next_area_code')]);
+  if(e1||e2) return toast((e1||e2).message);
+  openOrder({layer:e.layer,geo,code,customer:cnt.customer,odp:cnt.odp,name:'Area '+(areas.getLayers().length+1)});
 });
 map.on(L.Draw.Event.EDITED, async e=>{
   for(const l of e.layers.getLayers()){
-    const {error}=await saveArea(l.feature.properties.id,l.feature.properties.name,l);
+    const {error}=await saveGeom(l.feature.properties.id,l.feature.properties.name,l);
     if(error) toast(error.message);
   }
   toast('Perubahan area disimpan'); loadAreas();
@@ -202,11 +242,53 @@ map.on(L.Draw.Event.DELETED, async e=>{
   const {error}=await sb.from('project_areas').delete().in('id',ids);
   error?toast(error.message):toast('Area dihapus'); loadAreas();
 });
-async function renameArea(id,old){
-  const name=prompt('Nama area:',old); if(!name) return;
-  const {error}=await sb.from('project_areas').update({name:name.trim()}).eq('id',id);
-  error?toast(error.message):(map.closePopup(),loadAreas());
+// ---- Form order (modal) ----
+let STO=[], order=null;
+async function loadSto(){
+  const {data,error}=await sb.from('sto').select('*').order('sto');
+  if(error) return toast('Gagal memuat STO: '+error.message);
+  STO=data;
+  $('stoList').innerHTML=STO.map(s=>`<option value="${esc(s.sto)}">${esc(s.nama_sto||'')} (${esc(s.kabupaten_kota||'')})</option>`).join('');
 }
+const F={nama:'fNama',area:'fArea',regional:'fReg',branch:'fBranch',cluster:'fCluster',wok:'fWok',district:'fDist',sub_district:'fSub',kabupaten_kota:'fKab'};
+function fillSto(code){
+  const s=STO.find(x=>x.sto===code.trim().toUpperCase());
+  for(const [k,id] of Object.entries(F)) $(id).value=s?(s[k==='nama'?'nama_sto':k]||''):'';
+  return s;
+}
+$('fSto').oninput=e=>{
+  let v=e.target.value.trim();
+  if(!STO.some(x=>x.sto===v.toUpperCase())){ // cocokkan juga lewat nama STO jika unik
+    const m=STO.filter(x=>(x.nama_sto||'').toUpperCase()===v.toUpperCase());
+    if(m.length===1) v=m[0].sto;
+  }
+  fillSto(v);
+};
+function openOrder(o){
+  order=o;
+  $('fCode').value=o.code||''; $('fName').value=o.name||'';
+  $('fCust').value=o.customer??0; $('fOdp').value=o.odp??0;
+  $('fSto').value=o.sto_code||''; fillSto(o.sto_code||'');
+  $('modal').style.display='flex'; $('fName').focus();
+}
+function editOrder(id){
+  const l=areas.getLayers().find(x=>x.feature.properties.id===id); if(!l) return;
+  const p=l.feature.properties; map.closePopup();
+  openOrder({id,code:p.code,name:p.name,customer:p.customer,odp:p.odp,sto_code:p.sto_code});
+}
+const closeOrder=()=>{$('modal').style.display='none';order=null};
+$('mCancel').onclick=closeOrder;
+$('modal').addEventListener('keydown',e=>{if(e.key==='Escape')closeOrder()});
+$('mSave').onclick=async()=>{
+  const name=$('fName').value.trim(), sto=$('fSto').value.trim().toUpperCase();
+  if(!name) return toast('Nama polygon wajib diisi');
+  if(!STO.some(x=>x.sto===sto)) return toast('Pilih STO yang valid dari daftar');
+  let error;
+  if(order.id){ ({error}=await sb.from('project_areas').update({name,sto_code:sto}).eq('id',order.id)); }
+  else { ({error}=await sb.rpc('upsert_area',{p_id:null,p_project:project,p_name:name,p_geojson:order.geo,p_code:order.code,p_sto:sto})); }
+  if(error) return toast(error.message);
+  closeOrder(); toast('Order desain disimpan'); loadAreas();
+};
 
 // ---- Proyek ----
 async function loadProjects(){
@@ -236,7 +318,7 @@ map.on('moveend',debounce(loadPoints));
 // ---- Auth ----
 async function start(){
   $('login').style.display='none';
-  await loadProjects();
+  await Promise.all([loadProjects(),loadSto()]);
   const {data}=await sb.rpc('data_extent');
   if(data) map.fitBounds([[data.s,data.w],[data.n,data.e]]); else loadPoints();
   subscribe();
