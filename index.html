@@ -106,7 +106,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <div id="modal" class="mdl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="box">
     <h2 id="mTitle">Form Order Desain FTTH</h2>
-    <div class="sub">Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.</div>
+    <div class="sub" id="mSub">Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.</div>
     <div class="grid">
       <div><label for="fCode">Polygon ID</label><input id="fCode" readonly></div>
       <div><label for="fName">Nama Polygon</label><input id="fName" maxlength="80"></div>
@@ -226,7 +226,7 @@ async function loadAreas(){
   if(error) return toast(error.message);
   areas.clearLayers();
   data.features.forEach(f=>areas.addLayer(areaLayer(f)));
-  renderList(data.features);
+  areaFeatures=data.features; renderList(data.features); syncKml();
 }
 function renderList(fs){
   const box=$('areas'); box.innerHTML='';
@@ -260,7 +260,8 @@ map.on(L.Draw.Event.DELETED, async e=>{
   error?toast(error.message):toast('Area dihapus'); loadAreas();
 });
 // ---- Peran & status ----
-let ROLE=null, editPts=false, dlgSave=null;
+let ROLE=null, editPts=false, dlgSave=null, areaFeatures=[];
+const kmlGroup=L.featureGroup().addTo(map), kmlLayers={};
 const SL={submitted:'Submitted',revision:'Revision',designed:'Designed',completed:'Completed'};
 const SC={submitted:'#2563eb',revision:'#d97706',designed:'#7c3aed',completed:'#15803d'};
 const badge=st=>`<span class="st" style="background:${SC[st]||'#666'}">${SL[st]||esc(st)}</span>`;
@@ -276,9 +277,11 @@ function applyRole(){
 function areaPopup(p){
   let h=`<div class="pop"><b>${esc(p.name)}</b> ${badge(p.status)}<br>${esc(p.code||'')}${p.sto_code?' · STO '+esc(p.sto_code):''}<br>Pelanggan: ${p.customer} · ODP: ${p.odp} · Calon: ${p.prospect}`;
   if(p.dsi_id) h+=`<br>DSI: ${esc(p.dsi_id)} (${esc(p.dsi_name)})`;
+  if(p.nama_proyek) h+=`<br>Proyek: ${esc(p.nama_proyek)} · ${esc(p.tipe_design)}${p.ihld_id?' · IHLD '+esc(p.ihld_id):''}`;
   if(p.kml_path) h+=`<br><a href="#" onclick="dl('${esc(p.kml_path)}');return false">KML</a> · <a href="#" onclick="dl('${esc(p.boq_path)}');return false">BOQ</a>`;
   h+='<br>';
-  if(isPlan()&&p.status!=='completed') h+=`<button class="n" onclick="editOrder('${p.id}')">Form order</button>`;
+  if(p.kml_path) h+=`<button class="n" onclick="toggleKml('${p.id}')">${kmlLayers[p.id]?'Sembunyikan desain':'Lihat desain'}</button>`;
+  if(isPlan()&&p.status!=='completed') h+=`<button class="n" onclick="editOrder('${p.id}')">Update Polygon</button>`;
   if(isDes()&&['submitted','revision','designed'].includes(p.status)) h+=`<button class="n" onclick="uploadDesign('${p.id}')">Upload desain</button>`;
   if(isPlan()&&p.status==='designed') h+=`<button class="n" onclick="inputDsi('${p.id}')">Input DSI</button>`;
   return h+'</div>';
@@ -300,22 +303,79 @@ $('m2Save').onclick=async()=>{
 };
 function uploadDesign(id){
   map.closePopup();
-  openDialog('Upload desain','Kedua file wajib. Setelah berhasil, status menjadi Designed.',
-    `<div class="full"><label for="uKml">File desain (.kml)</label><input id="uKml" type="file" accept=".kml"></div>
-     <div class="full"><label for="uBoq">File BOQ (.xlsx)</label><input id="uBoq" type="file" accept=".xlsx"></div>`,
+  const cur=areaFeatures.find(f=>f.properties.id===id)?.properties||{};
+  const types=[...new Set(areaFeatures.map(f=>f.properties.tipe_design).filter(Boolean))];
+  openDialog('Upload desain','Nama Proyek dan Tipe Design wajib. KML dan BoQ wajib. Setelah berhasil, status menjadi Designed.',
+    `<div><label for="uIhld">ID IHLD (opsional)</label><input id="uIhld" maxlength="60" value="${esc(cur.ihld_id||'')}"></div>
+     <div><label for="uProyek">Nama Proyek *</label><input id="uProyek" maxlength="120" value="${esc(cur.nama_proyek||'')}"></div>
+     <div class="full"><label for="uTipe">Tipe Design *</label><input id="uTipe" list="tipeList" maxlength="60" autocomplete="off" value="${esc(cur.tipe_design||'')}"><datalist id="tipeList">${types.map(t=>`<option value="${esc(t)}">`).join('')}</datalist></div>
+     <div class="full"><label for="uKml">Upload KML (.kml) *</label><input id="uKml" type="file" accept=".kml"></div>
+     <div class="full"><label for="uBoq">Upload BoQ (.xlsx) *</label><input id="uBoq" type="file" accept=".xlsx"></div>`,
     async()=>{
+      const ihld=$('uIhld').value.trim(), proyek=$('uProyek').value.trim(), tipe=$('uTipe').value.trim();
       const k=$('uKml').files[0], b=$('uBoq').files[0];
-      if(!k||!b) return toast('Pilih file KML dan BOQ');
+      if(!proyek) return toast('Nama Proyek wajib diisi');
+      if(!tipe) return toast('Tipe Design wajib diisi');
+      if(!k||!b) return toast('Pilih file KML dan BoQ');
       if(!/\.kml$/i.test(k.name)||!/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
+      try{ parseKml(await k.text()) }catch(err){ return toast(err.message) }   // validasi KML sebelum upload
       const t=Date.now(), safe=n=>n.replace(/[^A-Za-z0-9._-]/g,'_');
       const kp=`${id}/${t}_${safe(k.name)}`, bp=`${id}/${t}_${safe(b.name)}`, st=sb.storage.from('designs');
       let r=await st.upload(kp,k,{contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) return toast(r.error.message);
       r=await st.upload(bp,b); if(r.error) return toast(r.error.message);
-      const {error}=await sb.rpc('mark_designed',{p_area:id,p_kml:kp,p_boq:bp});
+      const {error}=await sb.rpc('mark_designed',{p_area:id,p_kml:kp,p_boq:bp,p_ihld:ihld||null,p_proyek:proyek,p_tipe:tipe});
       if(error) return toast(error.message);
-      closeDialog(); toast('Desain terupload. Status: Designed'); loadAreas();
+      closeDialog(); toast('Desain terupload. Status: Designed');
+      await loadAreas(); showKml(id);
     });
 }
+// ---- KML di peta (terhubung ke Polygon ID) ----
+function parseKml(text){
+  const doc=new DOMParser().parseFromString(text,'text/xml');
+  if(doc.getElementsByTagName('parsererror').length) throw new Error('File KML tidak valid');
+  const pts=el=>{const c=el.getElementsByTagName('coordinates')[0];if(!c)return[];
+    return c.textContent.trim().split(/\s+/).map(t=>t.split(',').slice(0,2).map(Number)).filter(a=>a.length===2&&isFinite(a[0])&&isFinite(a[1]))};
+  const ring=el=>{const r=el.getElementsByTagName('LinearRing')[0];return r?pts(r):[]};
+  const feats=[];
+  for(const pm of doc.getElementsByTagName('Placemark')){
+    const props={name:pm.getElementsByTagName('name')[0]?.textContent||'',desc:pm.getElementsByTagName('description')[0]?.textContent||''};
+    const add=g=>feats.push({type:'Feature',properties:props,geometry:g});
+    for(const e of pm.getElementsByTagName('Point')){const c=pts(e)[0];if(c)add({type:'Point',coordinates:c})}
+    for(const e of pm.getElementsByTagName('LineString')){const c=pts(e);if(c.length>1)add({type:'LineString',coordinates:c})}
+    for(const e of pm.getElementsByTagName('Polygon')){
+      const o=e.getElementsByTagName('outerBoundaryIs')[0]; if(!o) continue;
+      const rings=[ring(o),...[...e.getElementsByTagName('innerBoundaryIs')].map(ring)].filter(r=>r.length>3);
+      if(rings.length) add({type:'Polygon',coordinates:rings});
+    }
+  }
+  if(!feats.length) throw new Error('KML tidak berisi objek (Point/LineString/Polygon)');
+  return {type:'FeatureCollection',features:feats};
+}
+async function showKml(id,fit=true){
+  const p=areaFeatures.find(f=>f.properties.id===id)?.properties;
+  if(!p||!p.kml_path) return toast('Belum ada file KML');
+  const {data,error}=await sb.storage.from('designs').download(p.kml_path);
+  if(error) return toast(error.message);
+  let gj; try{gj=parseKml(await data.text())}catch(err){return toast(err.message)}
+  hideKml(id);
+  const lyr=L.geoJSON(gj,{
+    style:f=>f.geometry.type==='Polygon'?{color:'#7c3aed',weight:2,fillOpacity:.1}:{color:'#e11d48',weight:3},
+    pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:'#fff',weight:1,fillColor:'#7c3aed',fillOpacity:1}),
+    onEachFeature:(f,l)=>l.bindPopup(`<b>${esc(f.properties.name||'(tanpa nama)')}</b><br>Desain ${esc(p.code||'')}${f.properties.desc?'<br>'+esc(f.properties.desc.slice(0,300)):''}`)
+  }).addTo(kmlGroup);
+  kmlLayers[id]={lyr,path:p.kml_path};
+  if(fit) map.fitBounds(lyr.getBounds(),{maxZoom:19});
+  toast(`Desain ${p.code}: ${gj.features.length} objek ditampilkan`);
+}
+function hideKml(id){if(kmlLayers[id]){kmlGroup.removeLayer(kmlLayers[id].lyr);delete kmlLayers[id]}}
+function toggleKml(id){map.closePopup();kmlLayers[id]?hideKml(id):showKml(id)}
+function syncKml(){ // segarkan desain yang sedang tampil bila file diganti / polygon dihapus
+  for(const id of Object.keys(kmlLayers)){
+    const p=areaFeatures.find(f=>f.properties.id===id)?.properties;
+    if(!p||!p.kml_path) hideKml(id); else if(p.kml_path!==kmlLayers[id].path) showKml(id,false);
+  }
+}
+
 function inputDsi(id){
   map.closePopup();
   openDialog('Input DSI','Setelah disimpan, status menjadi Completed dan polygon terkunci.',
@@ -366,6 +426,9 @@ $('fSto').oninput=e=>{
 };
 function openOrder(o){
   order=o;
+  $('mTitle').textContent=o.id?'Update Polygon':'Form Order Desain FTTH';
+  $('mSub').textContent=o.id?'Perubahan nama atau STO akan mengubah status menjadi Revision.':'Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.';
+  $('mSave').textContent=o.id?'Update':'Simpan';
   $('fCode').value=o.code||''; $('fName').value=o.name||'';
   $('fCust').value=o.customer??0; $('fOdp').value=o.odp??0;
   $('fSto').value=o.sto_code||''; fillSto(o.sto_code||'');
@@ -387,7 +450,7 @@ $('mSave').onclick=async()=>{
   if(order.id){ ({error}=await sb.from('project_areas').update({name,sto_code:sto}).eq('id',order.id)); }
   else { ({error}=await sb.rpc('upsert_area',{p_id:null,p_project:project,p_name:name,p_geojson:order.geo,p_code:order.code,p_sto:sto})); }
   if(error) return toast(error.message);
-  closeOrder(); toast('Order disubmit. Status: Submitted'); loadAreas();
+  const upd=!!order.id; closeOrder(); toast(upd?'Polygon diperbarui':'Order disubmit. Status: Submitted'); loadAreas();
 };
 
 // ---- Proyek ----
