@@ -243,8 +243,15 @@ async function start(){
 }
 $('loginForm').onsubmit=async e=>{
   e.preventDefault();
-  const {error}=await sb.auth.signInWithPassword({email:$('em').value,password:$('pw').value});
-  error?$('lerr').textContent='Email atau password salah':start();
+  if(SUPABASE_URL.includes('YOUR-PROJECT')||SUPABASE_KEY.includes('YOUR_ANON')){
+    $('lerr').textContent='SUPABASE_URL dan SUPABASE_KEY di index.html belum diisi'; return;
+  }
+  $('lerr').textContent='';
+  try{
+    const {error}=await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+    if(error){$('lerr').textContent=error.message;console.error(error);return}
+    await start();
+  }catch(err){$('lerr').textContent='Gagal terhubung: '+err.message;console.error(err)}
 };
 $('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
 sb.auth.getSession().then(({data})=>{if(data.session) start()});
