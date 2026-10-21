@@ -54,6 +54,24 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
 .pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
 .pop a{color:#0e7c7b}
+#mapwrap{position:relative;height:100%;min-width:0}
+#bar{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:4px;background:rgba(15,42,44,.95);padding:6px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.3);max-width:calc(100% - 16px);overflow-x:auto}
+#bar .grp{display:flex;align-items:center;gap:4px;padding:0 6px;border-left:1px solid var(--line)}
+#bar .grp:first-child{border-left:0}
+#bar button{background:transparent;border:0;color:var(--text);padding:8px 12px;border-radius:8px;white-space:nowrap}
+#bar button:hover:not(:disabled){background:#1b4549}
+#bar button.on{background:var(--text);color:var(--ink)}
+#bar button:disabled{opacity:.35;cursor:not-allowed}
+#bar .dot{width:10px;height:10px;margin-right:6px}
+#bar .chip{color:#7fe0d4;font-size:12px;white-space:nowrap;padding:0 4px}
+#bHint{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);z-index:1000;background:#fff;color:var(--ink);padding:6px 12px;border-radius:8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;max-width:calc(100% - 24px);text-align:center}
+.mdl .val{padding:7px 0;border-bottom:1px solid #e3e9e6;min-height:32px;word-break:break-word}
+.mdl .nil{color:#9aaaa7}
+.mdl .sec{grid-column:1/-1;font-size:12px;font-weight:600;color:#0e7c7b;margin-top:8px}
+.mdl .act{flex-wrap:wrap}
+.mdl .act .sp{flex:1}
+.mdl .act button.dng{color:#a02020;border-color:#e0b8b8}
+.mdl h2 .st{margin-left:8px;vertical-align:middle}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
 </style>
 </head>
@@ -81,18 +99,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       </div>
     </section>
     <section>
-      <h2>Tambah titik</h2>
-      <div class="row">
-        <button id="addOdp">Tambah ODP</button>
-        <button id="addPros">Tambah calon</button>
-      </div>
-      <button id="editPts" type="button" style="margin-top:8px;width:100%">Geser titik (edit posisi)</button>
-      <div id="hint" style="margin-top:8px">Pilih mode, lalu klik peta. Klik tombol lagi untuk batal.</div>
-    </section>
-    <section>
       <h2>Layer</h2>
       <label class="lg"><input type="checkbox" data-k="customer" checked style="width:auto"><span class="dot" style="background:var(--cust)"></span>Pelanggan (UN ID)</label>
-      <label class="lg"><input type="checkbox" data-k="odp" checked style="width:auto"><span class="dot" style="background:var(--odp)"></span>ODP</label>
+      <label class="lg"><input type="checkbox" data-k="odp" checked style="width:auto"><span class="dot" style="background:var(--odp)"></span>ODP Plan</label>
       <label class="lg"><input type="checkbox" data-k="prospect" checked style="width:auto"><span class="dot" style="background:var(--pros)"></span>Calon pelanggan</label>
       <div id="count" style="color:var(--mute);font-size:12px"></div>
     </section>
@@ -101,7 +110,27 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <div id="areas"><span id="empty" style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span></div>
     </section>
   </aside>
-  <div id="map"></div>
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div id="bHint" role="status"></div>
+    <div id="bar" role="toolbar" aria-label="Tools peta">
+      <div class="grp">
+        <button id="tPoly" type="button" title="Gambar polygon">Polygon</button>
+        <button id="tRect" type="button" title="Gambar kotak">Kotak</button>
+      </div>
+      <div class="grp">
+        <button id="addOdp" type="button"><span class="dot" style="background:var(--odp)"></span>ODP Plan</button>
+        <button id="addPros" type="button"><span class="dot" style="background:var(--pros)"></span>Calon Pelanggan</button>
+      </div>
+      <div class="grp">
+        <button id="tEditPoly" type="button" disabled title="Klik polygon lalu tekan Edit">Edit Polygon</button>
+        <button id="editPts" type="button" disabled title="Klik polygon lalu tekan Edit">Geser Titik</button>
+      </div>
+      <div class="grp" id="gSess" style="display:none"><span class="chip" id="sessTxt"></span><button id="sessForm" type="button">Form</button><button id="sessEnd" type="button">Selesai</button></div>
+      <div class="grp" id="gDraw" style="display:none"><button id="cUndo" type="button">Undo titik</button><button id="cCancel" type="button">Batal</button></div>
+      <div class="grp" id="gPoly" style="display:none"><button id="pSave" type="button" class="on">Simpan bentuk</button><button id="pCancel" type="button">Batal</button></div>
+    </div>
+  </div>
 </div>
 <div id="modal" class="mdl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="box">
@@ -129,6 +158,14 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <div class="act"><button id="mCancel" type="button">Batal</button><button id="mSave" type="button" class="pri">Simpan</button></div>
   </div>
 </div>
+<div id="modalView" class="mdl" role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="box">
+    <h2 id="vTitle">Resume Order</h2>
+    <div class="sub">Ringkasan order. Tekan Edit untuk mengubah form order.</div>
+    <div class="grid" id="vBody"></div>
+    <div class="act" id="vActs"></div>
+  </div>
+</div>
 <div id="modal2" class="mdl" role="dialog" aria-modal="true" aria-labelledby="m2Title">
   <div class="box">
     <h2 id="m2Title"></h2><div class="sub" id="m2Sub"></div>
@@ -152,7 +189,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
-const LABEL = {customer:'Pelanggan', odp:'ODP', prospect:'Calon pelanggan'};
+const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Calon pelanggan'};
 let mode = null, project = null, timer;
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)}
@@ -163,18 +200,12 @@ const map = L.map('map',{preferCanvas:true}).setView([-2.5,118],5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
 const layers = {customer:L.layerGroup().addTo(map), odp:L.layerGroup().addTo(map), prospect:L.layerGroup().addTo(map)};
 const areas = new L.FeatureGroup().addTo(map);
-const drawCtl=new L.Control.Draw({
-  edit:{featureGroup:areas},
-  draw:{polygon:{allowIntersection:false,shapeOptions:{color:'#0e7c7b'}},rectangle:{shapeOptions:{color:'#0e7c7b'}},
-        polyline:false,circle:false,marker:false,circlemarker:false}
-});
-map.addControl(drawCtl);
 document.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{
   const l=layers[c.dataset.k]; c.checked?map.addLayer(l):map.removeLayer(l)});
 
 // ---- Titik ----
 async function loadPoints(){
-  if(editPts&&map.getZoom()<15){editPts=false;$('editPts').classList.remove('on')}
+  if(editPts&&map.getZoom()<15){editPts=false;ui()}
   if(map.getZoom()<MIN_ZOOM){Object.values(layers).forEach(l=>l.clearLayers());$('count').textContent=`Zoom in (min. ${MIN_ZOOM}) untuk melihat titik`;return}
   const b=map.getBounds();
   const {data,error}=await sb.rpc('get_points',{w:b.getWest(),s:b.getSouth(),e:b.getEast(),n:b.getNorth(),lim:LIMIT});
@@ -182,10 +213,11 @@ async function loadPoints(){
   Object.values(layers).forEach(l=>l.clearLayers());
   data.features.forEach(f=>{
     const p=f.properties,[x,y]=f.geometry.coordinates;
-    const m=editPts
+    const drag=editPts&&sessionRing&&inRing(x,y,sessionRing);
+    const m=drag
       ? L.marker([y,x],{draggable:true,icon:L.divIcon({className:'',iconSize:[14,14],html:`<span style="display:block;width:14px;height:14px;border-radius:50%;background:${COL[p.kind]};border:2px solid #fff;box-shadow:0 0 0 1px #0006"></span>`})})
       : L.circleMarker([y,x],{radius:p.kind==='customer'?4:7,color:'#fff',weight:1,fillColor:COL[p.kind],fillOpacity:.95});
-    if(editPts) m.on('dragend',ev=>movePoint(p.id,ev.target.getLatLng()));
+    if(drag) m.on('dragend',ev=>movePoint(p.id,ev.target.getLatLng()));
     m.bindPopup(`<div class="pop"><b>${LABEL[p.kind]}</b><br>${p.un_id?'UN ID: '+esc(p.un_id)+'<br>':''}${p.name?esc(p.name)+'<br>':''}${y.toFixed(6)}, ${x.toFixed(6)}<br><button onclick="delPoint('${p.id}')">Hapus titik</button></div>`);
     layers[p.kind].addLayer(m);
   });
@@ -196,17 +228,90 @@ async function delPoint(id){
   const {error}=await sb.from('points').delete().eq('id',id);
   error?toast(error.message):(map.closePopup(),loadPoints());
 }
-function setMode(m){
-  mode=(mode===m)?null:m;
-  $('addOdp').classList.toggle('on',mode==='odp');
-  $('addPros').classList.toggle('on',mode==='prospect');
-  $('map').classList.toggle('add',!!mode);
+// ---- Tools bar (bawah peta) ----
+let drawH=null, drawing=false, editPts=false, polyEditing=null, pendingReload=false, preview=null, session=null, sessionRing=null;
+const DLH=L.drawLocal.draw.handlers;
+DLH.polygon.tooltip={start:'Klik untuk mulai menggambar polygon',cont:'Klik untuk menambah titik',end:'Klik titik pertama untuk menyelesaikan'};
+DLH.polygon.error='<strong>Sisi polygon tidak boleh berpotongan</strong>';
+DLH.rectangle.tooltip={start:'Klik dan seret untuk membuat kotak'};
+const layerOf=id=>areas.getLayers().find(x=>x.feature.properties.id===id);
+const clearPreview=()=>{if(preview){map.removeLayer(preview);preview=null}};
+function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const [xi,yi]=r[i],[xj,yj]=r[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c}return c}
+function ui(){
+  const on=(id,v)=>$(id).classList.toggle('on',!!v);
+  on('tPoly',drawH&&drawH._kind==='poly'); on('tRect',drawH&&drawH._kind==='rect');
+  on('addOdp',mode==='odp'); on('addPros',mode==='prospect'); on('editPts',editPts);
+  $('tEditPoly').disabled=!session||!!polyEditing; $('editPts').disabled=!session;
+  const sp=session?areaFeatures.find(f=>f.properties.id===session)?.properties:null;
+  $('gSess').style.display=session?'flex':'none'; $('sessTxt').textContent='Edit '+(sp?sp.code:'');
+  $('gDraw').style.display=drawing?'flex':'none';
+  $('cUndo').style.display=drawH&&drawH._kind==='poly'?'':'none';
+  $('gPoly').style.display=polyEditing?'flex':'none';
+  const H=drawing?'Klik peta untuk menambah titik. Klik titik pertama untuk menyelesaikan polygon.'
+    :polyEditing?'Seret sudut polygon ke posisi baru, lalu tekan Simpan bentuk.'
+    :mode?`Klik peta untuk menaruh ${LABEL[mode]}. Tekan tombolnya lagi untuk batal.`
+    :editPts?'Seret titik di dalam polygon ke posisi baru. Tekan Geser Titik lagi untuk selesai.'
+    :session?`Mengedit ${sp?sp.code:''}. Pakai Edit Polygon atau Geser Titik, lalu tekan Selesai.`:'';
+  $('bHint').textContent=H; $('bHint').style.display=H?'block':'none';
+  $('map').classList.toggle('add',!!mode||drawing);
 }
-$('addOdp').onclick=()=>setMode('odp');
-$('addPros').onclick=()=>setMode('prospect');
+function stopDraw(){if(drawH)drawH.disable()}
+function setMode(m){
+  const next=(mode===m)?null:m;
+  if(next){stopDraw();cancelPolyEdit();if(editPts){editPts=false;loadPoints()}}
+  mode=next; ui();
+}
+function setEditPts(on){
+  if(on&&!session) return toast('Klik polygon, lalu tekan Edit dulu');
+  if(on&&map.getZoom()<15){toast('Zoom in (min. 15) untuk menggeser titik');on=false}
+  if(on){stopDraw();cancelPolyEdit();mode=null}
+  editPts=on; ui(); loadPoints();
+}
+function startDraw(kind){
+  if(!project) return toast('Pilih atau buat proyek dulu');
+  const same=drawH&&drawH._kind===kind;
+  stopDraw(); if(same) return;
+  mode=null; cancelPolyEdit(); if(editPts){editPts=false;loadPoints()}
+  const shape={color:'#0e7c7b',weight:2};
+  drawH=kind==='poly'?new L.Draw.Polygon(map,{allowIntersection:false,shapeOptions:shape}):new L.Draw.Rectangle(map,{shapeOptions:shape});
+  drawH._kind=kind; drawH.enable();
+}
+map.on('draw:drawstart',()=>{drawing=true;ui()});
+map.on('draw:drawstop',()=>{drawing=false;drawH=null;ui()});
+function startPolyEdit(){
+  if(!session) return toast('Klik polygon, lalu tekan Edit dulu');
+  const l=layerOf(session); if(!l) return;
+  if(l.feature.properties.status==='completed') return toast('Polygon Completed terkunci');
+  stopDraw(); mode=null; if(editPts){editPts=false;loadPoints()}
+  polyEditing=session; l.editing.enable(); map.fitBounds(l.getBounds(),{maxZoom:18}); ui();
+}
+async function savePolyEdit(){
+  const id=polyEditing, l=layerOf(id); if(!l) return cancelPolyEdit();
+  l.editing.disable();
+  const {error}=await saveGeom(id,l.feature.properties.name,l);
+  polyEditing=null; pendingReload=false;
+  toast(error?error.message:'Bentuk polygon disimpan. Status: Revision');
+  await loadAreas(); ui();
+}
+function cancelPolyEdit(){
+  if(!polyEditing) return;
+  const l=layerOf(polyEditing); if(l) l.editing.disable();
+  polyEditing=null; loadAreas(); ui();
+}
+const ringOf=id=>areaFeatures.find(f=>f.properties.id===id)?.geometry.coordinates[0]||null;
+function beginSession(id){endSession(); session=id; sessionRing=ringOf(id); ui()}
+function endSession(){cancelPolyEdit(); if(editPts){editPts=false;loadPoints()} session=null; sessionRing=null; ui()}
+$('tPoly').onclick=()=>startDraw('poly'); $('tRect').onclick=()=>startDraw('rect');
+$('addOdp').onclick=()=>setMode('odp'); $('addPros').onclick=()=>setMode('prospect');
+$('editPts').onclick=()=>setEditPts(!editPts);
+$('tEditPoly').onclick=startPolyEdit;
+$('cUndo').onclick=()=>{if(drawH&&drawH.deleteLastVertex)drawH.deleteLastVertex()};
+$('cCancel').onclick=stopDraw;
+$('pSave').onclick=savePolyEdit; $('pCancel').onclick=cancelPolyEdit;
+$('sessForm').onclick=()=>editOrder(session); $('sessEnd').onclick=endSession;
 map.on('click',async e=>{
   if(!mode) return;
-  const name=prompt(mode==='odp'?'Nama/kode ODP:':'Nama calon pelanggan:');
+  const name=prompt(mode==='odp'?'Nama/kode ODP Plan:':'Nama calon pelanggan:');
   if(name===null) return;
   const {error}=await sb.from('points').insert({kind:mode,name:name.trim()||null,lat:e.latlng.lat,lng:e.latlng.lng});
   error?toast(error.message):(toast(LABEL[mode]+' ditambahkan'),loadPoints());
@@ -217,16 +322,19 @@ const areaLayer = f => {
   const l=L.geoJSON(f,{style:{color:SC[f.properties.status]||'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
   l.feature=f;
   const p=f.properties;
-  l.bindPopup(()=>areaPopup(p));
+  l.on('click',()=>{if(mode||drawing||polyEditing||editPts) return; openView(p.id)});
   return l;
 };
 async function loadAreas(){
+  if(polyEditing){pendingReload=true;return}
   if(!project){areas.clearLayers();renderList([]);return}
   const {data,error}=await sb.rpc('get_areas',{p_project:project});
   if(error) return toast(error.message);
   areas.clearLayers();
   data.features.forEach(f=>areas.addLayer(areaLayer(f)));
   areaFeatures=data.features; renderList(data.features); syncKml();
+  if(session){ if(!ringOf(session)) endSession(); else sessionRing=ringOf(session) }
+  ui();
 }
 function renderList(fs){
   const box=$('areas'); box.innerHTML='';
@@ -234,33 +342,23 @@ function renderList(fs){
   fs.forEach(f=>{
     const p=f.properties,d=document.createElement('div');d.className='area';
     d.innerHTML=`${esc(p.name)} ${badge(p.status)}<small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} calon</small>`;
-    d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id){map.fitBounds(l.getBounds());l.openPopup()}})};
+    d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id)map.fitBounds(l.getBounds())});openView(p.id)};
     box.appendChild(d);
   });
 }
 const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
 map.on(L.Draw.Event.CREATED, async e=>{
-  if(!project) return toast('Pilih atau buat proyek dulu');
   const geo=e.layer.toGeoJSON().geometry;
-  const [{data:cnt,error:e1},{data:code,error:e2}]=await Promise.all([
-    sb.rpc('count_in_geojson',{p_geojson:geo}), sb.rpc('next_area_code')]);
-  if(e1||e2) return toast((e1||e2).message);
-  openOrder({layer:e.layer,geo,code,customer:cnt.customer,odp:cnt.odp,name:'Area '+(areas.getLayers().length+1)});
-});
-map.on(L.Draw.Event.EDITED, async e=>{
-  for(const l of e.layers.getLayers()){
-    const {error}=await saveGeom(l.feature.properties.id,l.feature.properties.name,l);
-    if(error) toast(error.message);
-  }
-  toast('Perubahan area disimpan'); loadAreas();
-});
-map.on(L.Draw.Event.DELETED, async e=>{
-  const ids=e.layers.getLayers().map(l=>l.feature.properties.id);
-  const {error}=await sb.from('project_areas').delete().in('id',ids);
-  error?toast(error.message):toast('Area dihapus'); loadAreas();
+  clearPreview(); preview=e.layer; preview.setStyle({color:'#0e7c7b',dashArray:'6 4',weight:2,fillOpacity:.15}); preview.addTo(map);
+  openOrder({geo,name:'Area '+(areas.getLayers().length+1),code:'menghitung...',customer:'...',odp:'...',loading:true});
+  const [r1,r2]=await Promise.all([sb.rpc('count_in_geojson',{p_geojson:geo}),sb.rpc('next_area_code')]);
+  if(!order||order.geo!==geo) return;            // form sudah dibatalkan
+  if(r1.error||r2.error){toast((r1.error||r2.error).message);closeOrder();return}
+  Object.assign(order,{code:r2.data,customer:r1.data.customer,odp:r1.data.odp,loading:false});
+  $('fCode').value=order.code; $('fCust').value=order.customer; $('fOdp').value=order.odp; $('mSave').disabled=false;
 });
 // ---- Peran & status ----
-let ROLE=null, editPts=false, dlgSave=null, areaFeatures=[];
+let ROLE=null, dlgSave=null, areaFeatures=[];
 const kmlGroup=L.featureGroup().addTo(map), kmlLayers={};
 const SL={submitted:'Submitted',revision:'Revision',designed:'Designed',completed:'Completed'};
 const SC={submitted:'#2563eb',revision:'#d97706',designed:'#7c3aed',completed:'#15803d'};
@@ -269,22 +367,54 @@ const isPlan=()=>ROLE==='planner'||ROLE==='admin', isDes=()=>ROLE==='designer'||
 function applyRole(){
   $('who').textContent=ROLE?('Peran: '+({planner:'Planner (User A)',designer:'Designer (User B)',admin:'Admin'}[ROLE])):'Peran belum diatur';
   if(!ROLE) toast('Akun belum punya peran. Hubungi admin.');
-  if(!isPlan()){
-    map.removeControl(drawCtl);
-    ['addOdp','addPros','editPts','newProject'].forEach(id=>$(id).style.display='none');
-  }
+  if(!isPlan()){ $('bar').style.display='none'; $('newProject').style.display='none'; }
 }
-function areaPopup(p){
-  let h=`<div class="pop"><b>${esc(p.name)}</b> ${badge(p.status)}<br>${esc(p.code||'')}${p.sto_code?' · STO '+esc(p.sto_code):''}<br>Pelanggan: ${p.customer} · ODP: ${p.odp} · Calon: ${p.prospect}`;
-  if(p.dsi_id) h+=`<br>DSI: ${esc(p.dsi_id)} (${esc(p.dsi_name)})`;
-  if(p.nama_proyek) h+=`<br>Proyek: ${esc(p.nama_proyek)} · ${esc(p.tipe_design)}${p.ihld_id?' · IHLD '+esc(p.ihld_id):''}`;
-  if(p.kml_path) h+=`<br><a href="#" onclick="dl('${esc(p.kml_path)}');return false">KML</a> · <a href="#" onclick="dl('${esc(p.boq_path)}');return false">BOQ</a>`;
-  h+='<br>';
-  if(p.kml_path) h+=`<button class="n" onclick="toggleKml('${p.id}')">${kmlLayers[p.id]?'Sembunyikan desain':'Lihat desain'}</button>`;
-  if(isPlan()&&p.status!=='completed') h+=`<button class="n" onclick="editOrder('${p.id}')">Update Polygon</button>`;
-  if(isDes()&&['submitted','revision','designed'].includes(p.status)) h+=`<button class="n" onclick="uploadDesign('${p.id}')">Upload desain</button>`;
-  if(isPlan()&&p.status==='designed') h+=`<button class="n" onclick="inputDsi('${p.id}')">Input DSI</button>`;
-  return h+'</div>';
+// ---- Resume Order (modal view) ----
+let viewId=null;
+const nz=v=>v!==null&&v!==undefined&&v!=='';
+const vr=(l,v)=>`<div><label>${l}</label><div class="val">${nz(v)?esc(v):'<span class="nil">-</span>'}</div></div>`;
+function openView(id){
+  const p=areaFeatures.find(x=>x.properties.id===id)?.properties; if(!p) return;
+  viewId=id; const s=p.sto||{};
+  $('vTitle').innerHTML='Resume Order'+badge(p.status);
+  let h=vr('Polygon ID',p.code)+vr('Nama Polygon',p.name)+vr('Total Pelanggan',p.customer)+vr('Total ODP',p.odp)+vr('Total Calon Pelanggan',p.prospect)
+    +`<div class="sec">Wilayah STO</div>`+vr('STO',p.sto_code)+vr('Nama STO',s.nama_sto)+vr('Area',s.area)+vr('Regional',s.regional)+vr('Branch',s.branch)
+    +vr('Cluster',s.cluster)+vr('WOK',s.wok)+vr('District',s.district)+vr('Sub District',s.sub_district)+vr('Kabupaten/Kota',s.kabupaten_kota);
+  if(p.nama_proyek||p.kml_path){
+    h+=`<div class="sec">Desain</div>`+vr('ID IHLD',p.ihld_id)+vr('Nama Proyek',p.nama_proyek)+vr('Tipe Design',p.tipe_design)
+      +vr('Tanggal Desain',p.designed_at?new Date(p.designed_at).toLocaleString('id-ID'):'');
+    if(p.kml_path) h+=`<div><label>File</label><div class="val"><a href="#" onclick="dl('${esc(p.kml_path)}');return false">KML</a> · <a href="#" onclick="dl('${esc(p.boq_path)}');return false">BoQ</a></div></div>`;
+  }
+  if(p.dsi_id) h+=`<div class="sec">DSI</div>`+vr('DSI ID',p.dsi_id)+vr('DSI Name',p.dsi_name);
+  $('vBody').innerHTML=h;
+  const a=[], canEdit=isPlan()&&p.status!=='completed';
+  if(canEdit) a.push(`<button type="button" class="dng" onclick="deleteArea('${id}')">Hapus</button>`);
+  a.push('<span class="sp"></span>');
+  if(p.kml_path) a.push(`<button type="button" onclick="toggleKml('${id}')">${kmlLayers[id]?'Sembunyikan desain':'Lihat desain di peta'}</button>`);
+  if(isDes()&&['submitted','revision','designed'].includes(p.status)) a.push(`<button type="button" onclick="closeView();uploadDesign('${id}')">Upload Desain</button>`);
+  if(isPlan()&&p.status==='designed') a.push(`<button type="button" onclick="closeView();inputDsi('${id}')">Input DSI</button>`);
+  a.push('<button type="button" onclick="closeView()">Tutup</button>');
+  if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
+  $('vActs').innerHTML=a.join('');
+  $('modalView').style.display='flex';
+}
+const closeView=()=>{$('modalView').style.display='none';viewId=null};
+$('modalView').addEventListener('click',e=>{if(e.target.id==='modalView')closeView()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&viewId)closeView()});
+// Tombol Edit: buka sesi edit (alat Edit Polygon / Geser Titik aktif) + form order bisa diubah
+function startEdit(id){
+  closeView(); stopDraw(); mode=null;
+  beginSession(id);
+  const l=layerOf(id); if(l) map.fitBounds(l.getBounds(),{maxZoom:17});
+  editOrder(id);
+}
+async function deleteArea(id){
+  const p=areaFeatures.find(x=>x.properties.id===id)?.properties;
+  if(!confirm(`Hapus polygon ${p?p.code:''} (${p?p.name:''})? Tindakan ini tidak bisa dibatalkan.`)) return;
+  const {error}=await sb.from('project_areas').delete().eq('id',id);
+  if(error) return toast(error.message);
+  if(session===id) endSession();
+  hideKml(id); closeView(); toast('Polygon dihapus'); loadAreas();
 }
 async function dl(path){
   const {data,error}=await sb.storage.from('designs').createSignedUrl(path,60);
@@ -368,7 +498,7 @@ async function showKml(id,fit=true){
   toast(`Desain ${p.code}: ${gj.features.length} objek ditampilkan`);
 }
 function hideKml(id){if(kmlLayers[id]){kmlGroup.removeLayer(kmlLayers[id].lyr);delete kmlLayers[id]}}
-function toggleKml(id){map.closePopup();kmlLayers[id]?hideKml(id):showKml(id)}
+function toggleKml(id){closeView();kmlLayers[id]?hideKml(id):showKml(id)}
 function syncKml(){ // segarkan desain yang sedang tampil bila file diganti / polygon dihapus
   for(const id of Object.keys(kmlLayers)){
     const p=areaFeatures.find(f=>f.properties.id===id)?.properties;
@@ -389,13 +519,6 @@ function inputDsi(id){
       closeDialog(); toast('Status: Completed'); loadAreas();
     });
 }
-// Geser posisi titik (ODP / pelanggan / calon) -> polygon terkait menjadi Revision
-$('editPts').onclick=()=>{
-  if(!editPts&&map.getZoom()<15) return toast('Zoom in (min. 15) untuk menggeser titik');
-  editPts=!editPts; $('editPts').classList.toggle('on',editPts);
-  if(editPts) setMode(null);
-  loadPoints();
-};
 async function movePoint(id,ll){
   const {error}=await sb.from('points').update({lat:ll.lat,lng:ll.lng}).eq('id',id);
   toast(error?error.message:'Posisi diperbarui');
@@ -428,18 +551,17 @@ function openOrder(o){
   order=o;
   $('mTitle').textContent=o.id?'Update Polygon':'Form Order Desain FTTH';
   $('mSub').textContent=o.id?'Perubahan nama atau STO akan mengubah status menjadi Revision.':'Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.';
-  $('mSave').textContent=o.id?'Update':'Simpan';
+  $('mSave').textContent=o.id?'Update':'Simpan'; $('mSave').disabled=!!o.loading;
   $('fCode').value=o.code||''; $('fName').value=o.name||'';
   $('fCust').value=o.customer??0; $('fOdp').value=o.odp??0;
   $('fSto').value=o.sto_code||''; fillSto(o.sto_code||'');
   $('modal').style.display='flex'; $('fName').focus();
 }
 function editOrder(id){
-  const l=areas.getLayers().find(x=>x.feature.properties.id===id); if(!l) return;
-  const p=l.feature.properties; map.closePopup();
+  const p=areaFeatures.find(x=>x.properties.id===id)?.properties; if(!p) return;
   openOrder({id,code:p.code,name:p.name,customer:p.customer,odp:p.odp,sto_code:p.sto_code});
 }
-const closeOrder=()=>{$('modal').style.display='none';order=null};
+const closeOrder=()=>{$('modal').style.display='none';order=null;clearPreview()};
 $('mCancel').onclick=closeOrder;
 $('modal').addEventListener('keydown',e=>{if(e.key==='Escape')closeOrder()});
 $('mSave').onclick=async()=>{
