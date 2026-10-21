@@ -38,23 +38,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #login input{background:#fff;color:var(--ink);border-color:#c5cfcb}
 #login button{background:var(--ink);color:#fff}
 .pop button{margin-top:6px;padding:4px 8px;background:#fff;color:#a02020;border-color:#d8b4b4}
-.mdl{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:9997;padding:12px}
-.mdl .box{background:#fff;color:var(--ink);border-radius:10px;width:min(640px,100%);max-height:94vh;overflow:auto;padding:20px}
-.mdl h2{color:var(--ink);font-size:16px;margin:0 0 4px}
-.mdl .sub{color:#5b706d;font-size:12px;margin-bottom:14px}
-.mdl .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.mdl .full{grid-column:1/-1}
-.mdl label{display:block;font-size:12px;color:#5b706d;margin-bottom:3px}
-.mdl input{background:#fff;color:var(--ink);border-color:#c5cfcb}
-.mdl input[readonly]{background:#eef2f0}
-.mdl hr{border:0;border-top:1px solid #dde5e2;margin:14px 0}
-.mdl .act{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.mdl .act button{flex:none;min-width:90px;color:var(--ink);background:#fff;border-color:#c5cfcb}
-.mdl .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
 .pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
 .pop a{color:#0e7c7b}
-#mapwrap{position:relative;height:100%;min-width:0}
+#mapwrap{position:relative;height:100%;min-width:0;overflow:hidden}
 #bar{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:4px;background:rgba(15,42,44,.95);padding:6px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.3);max-width:calc(100% - 16px);overflow-x:auto}
 #bar .grp{display:flex;align-items:center;gap:4px;padding:0 6px;border-left:1px solid var(--line)}
 #bar .grp:first-child{border-left:0}
@@ -65,13 +52,28 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #bar .dot{width:10px;height:10px;margin-right:6px}
 #bar .chip{color:#7fe0d4;font-size:12px;white-space:nowrap;padding:0 4px}
 #bHint{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);z-index:1000;background:#fff;color:var(--ink);padding:6px 12px;border-radius:8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;max-width:calc(100% - 24px);text-align:center}
-.mdl .val{padding:7px 0;border-bottom:1px solid #e3e9e6;min-height:32px;word-break:break-word}
-.mdl .nil{color:#9aaaa7}
-.mdl .sec{grid-column:1/-1;font-size:12px;font-weight:600;color:#0e7c7b;margin-top:8px}
-.mdl .act{flex-wrap:wrap}
-.mdl .act .sp{flex:1}
+.mdl{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:10px;background:rgba(15,42,44,.18);z-index:1100}
+.mdl.left{justify-content:flex-start}
+.mdl .box{background:#fff;color:var(--ink);border-radius:10px;width:min(420px,100%);max-height:100%;overflow:auto;padding:12px 14px;font-size:12px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.mdl h2{display:flex;align-items:center;gap:6px;font-size:14px;margin:0 0 2px;color:var(--ink)}
+.mdl h2 .st{margin-left:6px}
+.mdl .sub{color:#5b706d;font-size:11px;margin-bottom:8px}
+.mdl .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.mdl .grid.g3{grid-template-columns:1fr 1fr 1fr}
+.mdl .full{grid-column:1/-1}
+.mdl label{display:block;font-size:11px;color:#5b706d;margin-bottom:2px}
+.mdl input{padding:5px 7px;font-size:12px;background:#fff;color:var(--ink);border-color:#c5cfcb;text-overflow:ellipsis}
+.mdl input[readonly]{background:#eef2f0}
+.mdl hr{border:0;border-top:1px solid #dde5e2;margin:8px 0}
+.mdl .act{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:10px}
+.mdl .act button{flex:none;min-width:70px;padding:5px 10px;font-size:12px;color:var(--ink);background:#fff;border-color:#c5cfcb}
+.mdl .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
 .mdl .act button.dng{color:#a02020;border-color:#e0b8b8}
-.mdl h2 .st{margin-left:8px;vertical-align:middle}
+.mdl .act .sp{flex:1}
+.mdl .val{padding:3px 0;border-bottom:1px solid #e3e9e6;min-height:22px;word-break:break-word}
+.mdl .nil{color:#9aaaa7}
+.mdl .sec{grid-column:1/-1;font-size:11px;font-weight:600;color:#0e7c7b;margin-top:4px}
+@media(max-width:720px){.mdl{align-items:flex-end;justify-content:center;padding:6px}.mdl .box{width:100%}}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
 </style>
 </head>
@@ -113,34 +115,15 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div id="mapwrap">
     <div id="map"></div>
     <div id="bHint" role="status"></div>
-    <div id="bar" role="toolbar" aria-label="Tools peta">
-      <div class="grp">
-        <button id="tPoly" type="button" title="Gambar polygon">Polygon</button>
-        <button id="tRect" type="button" title="Gambar kotak">Kotak</button>
-      </div>
-      <div class="grp">
-        <button id="addOdp" type="button"><span class="dot" style="background:var(--odp)"></span>ODP Plan</button>
-        <button id="addPros" type="button"><span class="dot" style="background:var(--pros)"></span>Calon Pelanggan</button>
-      </div>
-      <div class="grp">
-        <button id="tEditPoly" type="button" disabled title="Klik polygon lalu tekan Edit">Edit Polygon</button>
-        <button id="editPts" type="button" disabled title="Klik polygon lalu tekan Edit">Geser Titik</button>
-      </div>
-      <div class="grp" id="gSess" style="display:none"><span class="chip" id="sessTxt"></span><button id="sessForm" type="button">Form</button><button id="sessEnd" type="button">Selesai</button></div>
-      <div class="grp" id="gDraw" style="display:none"><button id="cUndo" type="button">Undo titik</button><button id="cCancel" type="button">Batal</button></div>
-      <div class="grp" id="gPoly" style="display:none"><button id="pSave" type="button" class="on">Simpan bentuk</button><button id="pCancel" type="button">Batal</button></div>
-    </div>
-  </div>
-</div>
 <div id="modal" class="mdl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="box">
     <h2 id="mTitle">Form Order Desain FTTH</h2>
-    <div class="sub" id="mSub">Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.</div>
-    <div class="grid">
+    <div class="sub" id="mSub">Isi nama polygon dan pilih STO.</div>
+    <div class="grid g3">
       <div><label for="fCode">Polygon ID</label><input id="fCode" readonly></div>
-      <div><label for="fName">Nama Polygon</label><input id="fName" maxlength="80"></div>
       <div><label for="fCust">Total Pelanggan</label><input id="fCust" readonly></div>
       <div><label for="fOdp">Total ODP</label><input id="fOdp" readonly></div>
+      <div class="full"><label for="fName">Nama Polygon</label><input id="fName" maxlength="80"></div>
     </div>
     <hr>
     <div class="grid">
@@ -171,6 +154,36 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <h2 id="m2Title"></h2><div class="sub" id="m2Sub"></div>
     <div class="grid" id="m2Body"></div>
     <div class="act"><button id="m2Cancel" type="button">Batal</button><button id="m2Save" type="button" class="pri">Simpan</button></div>
+  </div>
+</div>
+<div id="modalPt" class="mdl" role="dialog" aria-modal="true" aria-labelledby="ptTitle">
+  <div class="box" style="width:min(300px,100%)">
+    <h2 id="ptTitle">Tambah titik</h2>
+    <div class="grid">
+      <div class="full"><label for="ptName" id="ptNameL">Nama</label><input id="ptName" maxlength="80" autocomplete="off"></div>
+      <div><label for="ptLat">Latitude</label><input id="ptLat" readonly></div>
+      <div><label for="ptLng">Longitude</label><input id="ptLng" readonly></div>
+    </div>
+    <div class="act"><button id="ptCancel" type="button">Batal</button><button id="ptSave" type="button" class="pri">Simpan</button></div>
+  </div>
+</div>
+    <div id="bar" role="toolbar" aria-label="Tools peta">
+      <div class="grp">
+        <button id="tPoly" type="button" title="Gambar polygon">Polygon</button>
+        <button id="tRect" type="button" title="Gambar kotak">Kotak</button>
+      </div>
+      <div class="grp">
+        <button id="addOdp" type="button"><span class="dot" style="background:var(--odp)"></span>ODP Plan</button>
+        <button id="addPros" type="button"><span class="dot" style="background:var(--pros)"></span>Calon Pelanggan</button>
+      </div>
+      <div class="grp">
+        <button id="tEditPoly" type="button" disabled title="Klik polygon lalu tekan Edit">Edit Polygon</button>
+        <button id="editPts" type="button" disabled title="Klik polygon lalu tekan Edit">Geser Titik</button>
+      </div>
+      <div class="grp" id="gSess" style="display:none"><span class="chip" id="sessTxt"></span><button id="sessForm" type="button">Form</button><button id="sessEnd" type="button">Selesai</button></div>
+      <div class="grp" id="gDraw" style="display:none"><button id="cUndo" type="button">Undo titik</button><button id="cCancel" type="button">Batal</button></div>
+      <div class="grp" id="gPoly" style="display:none"><button id="pSave" type="button" class="on">Simpan bentuk</button><button id="pCancel" type="button">Batal</button></div>
+    </div>
   </div>
 </div>
 <div id="toast" role="status"></div>
@@ -309,13 +322,37 @@ $('cUndo').onclick=()=>{if(drawH&&drawH.deleteLastVertex)drawH.deleteLastVertex(
 $('cCancel').onclick=stopDraw;
 $('pSave').onclick=savePolyEdit; $('pCancel').onclick=cancelPolyEdit;
 $('sessForm').onclick=()=>editOrder(session); $('sessEnd').onclick=endSession;
-map.on('click',async e=>{
-  if(!mode) return;
-  const name=prompt(mode==='odp'?'Nama/kode ODP Plan:':'Nama calon pelanggan:');
-  if(name===null) return;
-  const {error}=await sb.from('points').insert({kind:mode,name:name.trim()||null,lat:e.latlng.lat,lng:e.latlng.lng});
-  error?toast(error.message):(toast(LABEL[mode]+' ditambahkan'),loadPoints());
-});
+// Input titik ODP Plan / Calon Pelanggan: modal di dalam peta
+let ptDraft=null, ptMarker=null;
+const panelOpen=()=>['modal','modal2','modalPt'].some(i=>$(i).style.display==='flex');
+function openPoint(kind,ll){
+  if(panelOpen()) return;
+  ptDraft={kind,ll};
+  if(ptMarker) map.removeLayer(ptMarker);
+  ptMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:COL[kind],fillOpacity:.9}).addTo(map);
+  $('ptTitle').innerHTML=`<span class="dot" style="background:${COL[kind]}"></span>Tambah ${LABEL[kind]}`;
+  $('ptNameL').textContent=kind==='odp'?'Kode / Nama ODP Plan':'Nama Calon Pelanggan';
+  $('ptName').value=''; $('ptLat').value=ll.lat.toFixed(6); $('ptLng').value=ll.lng.toFixed(6);
+  $('modalPt').classList.toggle('left',map.latLngToContainerPoint(ll).x>map.getSize().x/2);  // panel di sisi seberang titik
+  $('modalPt').style.display='flex'; $('ptName').focus();
+}
+function closePoint(){
+  $('modalPt').style.display='none';
+  if(ptMarker){map.removeLayer(ptMarker);ptMarker=null}
+  ptDraft=null;
+}
+$('ptCancel').onclick=closePoint;
+$('ptName').addEventListener('keydown',e=>{if(e.key==='Enter')$('ptSave').click()});
+$('ptSave').onclick=async()=>{
+  if(!ptDraft) return;
+  const {kind,ll}=ptDraft, name=$('ptName').value.trim();
+  $('ptSave').disabled=true;
+  const {error}=await sb.from('points').insert({kind,name:name||null,lat:ll.lat,lng:ll.lng});
+  $('ptSave').disabled=false;
+  if(error) return toast(error.message);
+  closePoint(); toast(LABEL[kind]+' ditambahkan'); loadPoints();
+};
+map.on('click',e=>{ if(mode) openPoint(mode,e.latlng) });
 
 // ---- Polygon (CRUD) ----
 const areaLayer = f => {
@@ -375,6 +412,7 @@ const nz=v=>v!==null&&v!==undefined&&v!=='';
 const vr=(l,v)=>`<div><label>${l}</label><div class="val">${nz(v)?esc(v):'<span class="nil">-</span>'}</div></div>`;
 function openView(id){
   const p=areaFeatures.find(x=>x.properties.id===id)?.properties; if(!p) return;
+  if(panelOpen()) return toast('Selesaikan form yang sedang terbuka dulu');
   viewId=id; const s=p.sto||{};
   $('vTitle').innerHTML='Resume Order'+badge(p.status);
   let h=vr('Polygon ID',p.code)+vr('Nama Polygon',p.name)+vr('Total Pelanggan',p.customer)+vr('Total ODP',p.odp)+vr('Total Calon Pelanggan',p.prospect)
@@ -400,7 +438,7 @@ function openView(id){
 }
 const closeView=()=>{$('modalView').style.display='none';viewId=null};
 $('modalView').addEventListener('click',e=>{if(e.target.id==='modalView')closeView()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&viewId)closeView()});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(viewId)closeView();if(ptDraft)closePoint()});
 // Tombol Edit: buka sesi edit (alat Edit Polygon / Geser Titik aktif) + form order bisa diubah
 function startEdit(id){
   closeView(); stopDraw(); mode=null;
@@ -536,7 +574,7 @@ async function loadSto(){
 const F={nama:'fNama',area:'fArea',regional:'fReg',branch:'fBranch',cluster:'fCluster',wok:'fWok',district:'fDist',sub_district:'fSub',kabupaten_kota:'fKab'};
 function fillSto(code){
   const s=STO.find(x=>x.sto===code.trim().toUpperCase());
-  for(const [k,id] of Object.entries(F)) $(id).value=s?(s[k==='nama'?'nama_sto':k]||''):'';
+  for(const [k,id] of Object.entries(F)){ $(id).value=s?(s[k==='nama'?'nama_sto':k]||''):''; $(id).title=$(id).value }
   return s;
 }
 $('fSto').oninput=e=>{
