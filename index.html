@@ -52,28 +52,29 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 #bar .dot{width:10px;height:10px;margin-right:6px}
 #bar .chip{color:#7fe0d4;font-size:12px;white-space:nowrap;padding:0 4px}
 #bHint{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);z-index:1000;background:#fff;color:var(--ink);padding:6px 12px;border-radius:8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;max-width:calc(100% - 24px);text-align:center}
-.mdl{position:absolute;inset:0;display:none;align-items:flex-start;justify-content:flex-end;padding:10px;background:rgba(15,42,44,.18);z-index:1100}
-.mdl.left{justify-content:flex-start}
-.mdl .box{background:#fff;color:var(--ink);border-radius:10px;width:min(420px,100%);max-height:100%;overflow:auto;padding:12px 14px;font-size:12px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
-.mdl h2{display:flex;align-items:center;gap:6px;font-size:14px;margin:0 0 2px;color:var(--ink)}
-.mdl h2 .st{margin-left:6px}
-.mdl .sub{color:#5b706d;font-size:11px;margin-bottom:8px}
-.mdl .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
-.mdl .grid.g3{grid-template-columns:1fr 1fr 1fr}
-.mdl .full{grid-column:1/-1}
-.mdl label{display:block;font-size:11px;color:#5b706d;margin-bottom:2px}
-.mdl input{padding:5px 7px;font-size:12px;background:#fff;color:var(--ink);border-color:#c5cfcb;text-overflow:ellipsis}
-.mdl input[readonly]{background:#eef2f0}
-.mdl hr{border:0;border-top:1px solid #dde5e2;margin:8px 0}
-.mdl .act{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:10px}
-.mdl .act button{flex:none;min-width:70px;padding:5px 10px;font-size:12px;color:var(--ink);background:#fff;border-color:#c5cfcb}
-.mdl .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
-.mdl .act button.dng{color:#a02020;border-color:#e0b8b8}
-.mdl .act .sp{flex:1}
-.mdl .val{padding:3px 0;border-bottom:1px solid #e3e9e6;min-height:22px;word-break:break-word}
-.mdl .nil{color:#9aaaa7}
-.mdl .sec{grid-column:1/-1;font-size:11px;font-weight:600;color:#0e7c7b;margin-top:4px}
-@media(max-width:720px){.mdl{align-items:flex-end;justify-content:center;padding:6px}.mdl .box{width:100%}}
+.mdl{display:none}
+.gpop{font-family:'IBM Plex Sans',system-ui,sans-serif}
+.gpop .leaflet-popup-content-wrapper{border-radius:12px}
+.gpop .leaflet-popup-content{margin:10px 12px;font-size:12px;line-height:1.35;color:var(--ink)}
+.gpop .box{width:min(340px,68vw)}
+.gpop h2{display:flex;align-items:center;gap:6px;font-size:14px;margin:0 22px 2px 0;color:var(--ink)}
+.gpop h2 .st{margin-left:6px}
+.gpop .sub{color:#5b706d;font-size:11px;margin-bottom:8px}
+.gpop .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.gpop .grid.g3{grid-template-columns:1fr 1fr 1fr}
+.gpop .full{grid-column:1/-1}
+.gpop label{display:block;font-size:11px;color:#5b706d;margin-bottom:2px}
+.gpop input{padding:5px 7px;font-size:12px;background:#fff;color:var(--ink);border-color:#c5cfcb;text-overflow:ellipsis}
+.gpop input[readonly]{background:#eef2f0}
+.gpop hr{border:0;border-top:1px solid #dde5e2;margin:8px 0}
+.gpop .act{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:10px}
+.gpop .act button{flex:none;min-width:64px;padding:5px 10px;font-size:12px;color:var(--ink);background:#fff;border-color:#c5cfcb}
+.gpop .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.gpop .act button.dng{color:#a02020;border-color:#e0b8b8}
+.gpop .act .sp{flex:1}
+.gpop .val{padding:3px 0;border-bottom:1px solid #e3e9e6;min-height:22px;word-break:break-word}
+.gpop .nil{color:#9aaaa7}
+.gpop .sec{grid-column:1/-1;font-size:11px;font-weight:600;color:#0e7c7b;margin-top:4px}
 @media(max-width:720px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}}
 </style>
 </head>
@@ -157,7 +158,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   </div>
 </div>
 <div id="modalPt" class="mdl" role="dialog" aria-modal="true" aria-labelledby="ptTitle">
-  <div class="box" style="width:min(300px,100%)">
+  <div class="box" style="width:min(280px,68vw)">
     <h2 id="ptTitle">Tambah titik</h2>
     <div class="grid">
       <div class="full"><label for="ptName" id="ptNameL">Nama</label><input id="ptName" maxlength="80" autocomplete="off"></div>
@@ -270,11 +271,13 @@ function ui(){
 }
 function stopDraw(){if(drawH)drawH.disable()}
 function setMode(m){
+  if(m&&busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   const next=(mode===m)?null:m;
   if(next){stopDraw();cancelPolyEdit();if(editPts){editPts=false;loadPoints()}}
   mode=next; ui();
 }
 function setEditPts(on){
+  if(on&&busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   if(on&&!session) return toast('Klik polygon, lalu tekan Edit dulu');
   if(on&&map.getZoom()<15){toast('Zoom in (min. 15) untuk menggeser titik');on=false}
   if(on){stopDraw();cancelPolyEdit();mode=null}
@@ -282,6 +285,7 @@ function setEditPts(on){
 }
 function startDraw(kind){
   if(!project) return toast('Pilih atau buat proyek dulu');
+  if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   const same=drawH&&drawH._kind===kind;
   stopDraw(); if(same) return;
   mode=null; cancelPolyEdit(); if(editPts){editPts=false;loadPoints()}
@@ -292,6 +296,7 @@ function startDraw(kind){
 map.on('draw:drawstart',()=>{drawing=true;ui()});
 map.on('draw:drawstop',()=>{drawing=false;drawH=null;ui()});
 function startPolyEdit(){
+  if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   if(!session) return toast('Klik polygon, lalu tekan Edit dulu');
   const l=layerOf(session); if(!l) return;
   if(l.feature.properties.status==='completed') return toast('Polygon Completed terkunci');
@@ -321,26 +326,48 @@ $('tEditPoly').onclick=startPolyEdit;
 $('cUndo').onclick=()=>{if(drawH&&drawH.deleteLastVertex)drawH.deleteLastVertex()};
 $('cCancel').onclick=stopDraw;
 $('pSave').onclick=savePolyEdit; $('pCancel').onclick=cancelPolyEdit;
-$('sessForm').onclick=()=>editOrder(session); $('sessEnd').onclick=endSession;
+$('sessForm').onclick=()=>editOrder(session,centerOf(session)); $('sessEnd').onclick=endSession;
 // Input titik ODP Plan / Calon Pelanggan: modal di dalam peta
 let ptDraft=null, ptMarker=null;
-const panelOpen=()=>['modal','modal2','modalPt'].some(i=>$(i).style.display==='flex');
+// ---- Panel = popup Leaflet di peta (form & resume dipindah ke dalam popup) ----
+const BOX={order:$('modal').querySelector('.box'),view:$('modalView').querySelector('.box'),dlg:$('modal2').querySelector('.box'),pt:$('modalPt').querySelector('.box')};
+const HOME=new Map(Object.values(BOX).map(b=>[b,b.parentNode]));
+Object.values(BOX).forEach(b=>L.DomEvent.on(b,'keydown keyup keypress',e=>{   // ketikan di form tidak boleh menggeser/zoom peta
+  if(e.type==='keydown'&&e.key==='Escape') closePanel();
+  e.stopPropagation();
+}));
+let panel=null, anchorLL=null;
+const busy=()=>!!panel&&(panel.name==='order'||panel.name==='dlg');
+const centerOf=id=>layerOf(id)?.getBounds().getCenter()||map.getCenter();
+function showPanel(name,ll,onClose){
+  closePanel();
+  const box=BOX[name];
+  const p=L.popup({className:'gpop',minWidth:240,maxWidth:420,maxHeight:Math.max(220,map.getSize().y-110),offset:[0,-4],
+    closeOnClick:false,autoClose:false,keepInView:true,autoPanPaddingTopLeft:[12,12],autoPanPaddingBottomRight:[12,12]});
+  panel={name,p,onClose};
+  p.on('remove',()=>{
+    HOME.get(box).appendChild(box);                      // kembalikan form ke tempat semula
+    if(panel&&panel.p===p){const c=panel;panel=null;if(c.onClose)c.onClose()}
+  });
+  p.setLatLng(ll).setContent(box).openOn(map);
+}
+function closePanel(){ if(panel) map.closePopup(panel.p) }
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel&&!drawing)closePanel()});
 function openPoint(kind,ll){
-  if(panelOpen()) return;
+  if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
+  closePanel();
   ptDraft={kind,ll};
-  if(ptMarker) map.removeLayer(ptMarker);
   ptMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:COL[kind],fillOpacity:.9}).addTo(map);
   $('ptTitle').innerHTML=`<span class="dot" style="background:${COL[kind]}"></span>Tambah ${LABEL[kind]}`;
   $('ptNameL').textContent=kind==='odp'?'Kode / Nama ODP Plan':'Nama Calon Pelanggan';
   $('ptName').value=''; $('ptLat').value=ll.lat.toFixed(6); $('ptLng').value=ll.lng.toFixed(6);
-  $('modalPt').classList.toggle('left',map.latLngToContainerPoint(ll).x>map.getSize().x/2);  // panel di sisi seberang titik
-  $('modalPt').style.display='flex'; $('ptName').focus();
+  showPanel('pt',ll,cleanupPt); $('ptName').focus();
 }
-function closePoint(){
-  $('modalPt').style.display='none';
+function cleanupPt(){
   if(ptMarker){map.removeLayer(ptMarker);ptMarker=null}
   ptDraft=null;
 }
+const closePoint=()=>{if(panel&&panel.name==='pt')closePanel()};
 $('ptCancel').onclick=closePoint;
 $('ptName').addEventListener('keydown',e=>{if(e.key==='Enter')$('ptSave').click()});
 $('ptSave').onclick=async()=>{
@@ -359,7 +386,7 @@ const areaLayer = f => {
   const l=L.geoJSON(f,{style:{color:SC[f.properties.status]||'#0e7c7b',weight:2,fillOpacity:.12}}).getLayers()[0];
   l.feature=f;
   const p=f.properties;
-  l.on('click',()=>{if(mode||drawing||polyEditing||editPts) return; openView(p.id)});
+  l.on('click',ev=>{if(mode||drawing||polyEditing||editPts) return; openView(p.id,ev.latlng)});
   return l;
 };
 async function loadAreas(){
@@ -386,8 +413,8 @@ function renderList(fs){
 const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
 map.on(L.Draw.Event.CREATED, async e=>{
   const geo=e.layer.toGeoJSON().geometry;
-  clearPreview(); preview=e.layer; preview.setStyle({color:'#0e7c7b',dashArray:'6 4',weight:2,fillOpacity:.15}); preview.addTo(map);
-  openOrder({geo,name:'Area '+(areas.getLayers().length+1),code:'menghitung...',customer:'...',odp:'...',loading:true});
+  closePanel(); clearPreview(); preview=e.layer; preview.setStyle({color:'#0e7c7b',dashArray:'6 4',weight:2,fillOpacity:.15}); preview.addTo(map);
+  openOrder({geo,ll:e.layer.getBounds().getCenter(),name:'Area '+(areas.getLayers().length+1),code:'menghitung...',customer:'...',odp:'...',loading:true});
   const [r1,r2]=await Promise.all([sb.rpc('count_in_geojson',{p_geojson:geo}),sb.rpc('next_area_code')]);
   if(!order||order.geo!==geo) return;            // form sudah dibatalkan
   if(r1.error||r2.error){toast((r1.error||r2.error).message);closeOrder();return}
@@ -410,10 +437,11 @@ function applyRole(){
 let viewId=null;
 const nz=v=>v!==null&&v!==undefined&&v!=='';
 const vr=(l,v)=>`<div><label>${l}</label><div class="val">${nz(v)?esc(v):'<span class="nil">-</span>'}</div></div>`;
-function openView(id){
+function openView(id,ll){
   const p=areaFeatures.find(x=>x.properties.id===id)?.properties; if(!p) return;
-  if(panelOpen()) return toast('Selesaikan form yang sedang terbuka dulu');
-  viewId=id; const s=p.sto||{};
+  if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
+  closePanel();
+  viewId=id; anchorLL=ll||centerOf(id); const s=p.sto||{};
   $('vTitle').innerHTML='Resume Order'+badge(p.status);
   let h=vr('Polygon ID',p.code)+vr('Nama Polygon',p.name)+vr('Total Pelanggan',p.customer)+vr('Total ODP',p.odp)+vr('Total Calon Pelanggan',p.prospect)
     +`<div class="sec">Wilayah STO</div>`+vr('STO',p.sto_code)+vr('Nama STO',s.nama_sto)+vr('Area',s.area)+vr('Regional',s.regional)+vr('Branch',s.branch)
@@ -434,17 +462,15 @@ function openView(id){
   a.push('<button type="button" onclick="closeView()">Tutup</button>');
   if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
   $('vActs').innerHTML=a.join('');
-  $('modalView').style.display='flex';
+  showPanel('view',anchorLL,()=>{viewId=null});
 }
-const closeView=()=>{$('modalView').style.display='none';viewId=null};
-$('modalView').addEventListener('click',e=>{if(e.target.id==='modalView')closeView()});
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(viewId)closeView();if(ptDraft)closePoint()});
+const closeView=()=>{if(panel&&panel.name==='view')closePanel()};
 // Tombol Edit: buka sesi edit (alat Edit Polygon / Geser Titik aktif) + form order bisa diubah
 function startEdit(id){
   closeView(); stopDraw(); mode=null;
   beginSession(id);
   const l=layerOf(id); if(l) map.fitBounds(l.getBounds(),{maxZoom:17});
-  editOrder(id);
+  editOrder(id,anchorLL);
 }
 async function deleteArea(id){
   const p=areaFeatures.find(x=>x.properties.id===id)?.properties;
@@ -459,10 +485,11 @@ async function dl(path){
   error?toast(error.message):window.open(data.signedUrl,'_blank');
 }
 function openDialog(title,sub,body,onSave){
+  closePanel();
   $('m2Title').textContent=title;$('m2Sub').textContent=sub;$('m2Body').innerHTML=body;
-  dlgSave=onSave;$('modal2').style.display='flex';
+  dlgSave=onSave;showPanel('dlg',anchorLL||map.getCenter(),()=>{dlgSave=null});
 }
-const closeDialog=()=>{$('modal2').style.display='none';dlgSave=null};
+const closeDialog=()=>{if(panel&&panel.name==='dlg')closePanel()};
 $('m2Cancel').onclick=closeDialog;
 $('modal2').addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog()});
 $('m2Save').onclick=async()=>{
@@ -586,6 +613,7 @@ $('fSto').oninput=e=>{
   fillSto(v);
 };
 function openOrder(o){
+  closePanel();
   order=o;
   $('mTitle').textContent=o.id?'Update Polygon':'Form Order Desain FTTH';
   $('mSub').textContent=o.id?'Perubahan nama atau STO akan mengubah status menjadi Revision.':'Isi Nama Polygon dan pilih STO. Data wilayah terisi otomatis.';
@@ -593,13 +621,13 @@ function openOrder(o){
   $('fCode').value=o.code||''; $('fName').value=o.name||'';
   $('fCust').value=o.customer??0; $('fOdp').value=o.odp??0;
   $('fSto').value=o.sto_code||''; fillSto(o.sto_code||'');
-  $('modal').style.display='flex'; $('fName').focus();
+  showPanel('order',o.ll||anchorLL||map.getCenter(),()=>{order=null;clearPreview()}); $('fName').focus();
 }
-function editOrder(id){
+function editOrder(id,ll){
   const p=areaFeatures.find(x=>x.properties.id===id)?.properties; if(!p) return;
-  openOrder({id,code:p.code,name:p.name,customer:p.customer,odp:p.odp,sto_code:p.sto_code});
+  openOrder({id,ll,code:p.code,name:p.name,customer:p.customer,odp:p.odp,sto_code:p.sto_code});
 }
-const closeOrder=()=>{$('modal').style.display='none';order=null;clearPreview()};
+const closeOrder=()=>{if(panel&&panel.name==='order')closePanel()};
 $('mCancel').onclick=closeOrder;
 $('modal').addEventListener('keydown',e=>{if(e.key==='Escape')closeOrder()});
 $('mSave').onclick=async()=>{
