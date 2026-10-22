@@ -40,9 +40,13 @@ tbody tr:hover td{background:#f7faf8}
     </div>
     <div class="grid4">
       <div><label for="fTipe">Tipe Desain</label><select id="fTipe"></select></div>
-      <div><label for="fStatus">Status</label><select id="fStatus"></select></div>
       <div><label for="fKab">Kabupaten/Kota</label><select id="fKab"></select></div>
       <div><label for="fTahun">Tahun</label><select id="fTahun"></select></div>
+    </div>
+    <div class="grid4" style="margin-top:10px">
+      <div><label for="fSP">Status Polygon</label><select id="fSP"></select></div>
+      <div><label for="fSD">Status Design</label><select id="fSD"></select></div>
+      <div><label for="fSI">Status DSI</label><select id="fSI"></select></div>
     </div>
     <div class="acts">
       <button id="apply" type="button" class="pri">Terapkan Filter</button>
@@ -76,7 +80,7 @@ async function loadRows(){
   const m = new Map(t.data.map(x => [x.id, x]));
   return g.data.features.map(f => {
     const p = f.properties, s = p.sto || {}, x = m.get(p.id) || {};
-    return {id:p.id, code:p.code, name:p.name, status:p.status,
+    return {id:p.id, code:p.code, name:p.name, polygon_status:p.polygon_status, design_status:p.design_status, dsi_status:p.dsi_status,
       sto_code:p.sto_code, nama_sto:s.nama_sto, area:s.area, regional:s.regional, branch:s.branch, cluster:s.cluster, wok:s.wok,
       district:s.district, sub_district:s.sub_district, kabupaten_kota:s.kabupaten_kota,
       ihld_id:p.ihld_id, nama_proyek:p.nama_proyek, tipe_design:p.tipe_design, kml_path:p.kml_path, boq_path:p.boq_path,
@@ -87,7 +91,9 @@ async function loadRows(){
 let ALL = [], VIEW = [], sortKey = 'created_at', sortDir = -1, page = 1;
 // [kunci, judul, (opsional) render kustom]
 const COLS = [
-  ['status','Status', r => badge(r.status)],
+  ['polygon_status','Status Polygon', r => bPoly(r.polygon_status)],
+  ['design_status','Status Design', r => bDesign(r.design_status)],
+  ['dsi_status','Status DSI', r => bDsi(r.dsi_status)],
   ['code','Polygon ID'], ['name','Nama Polygon'], ['nama_proyek','Nama Proyek'],
   ['tipe_design','Tipe Desain'], ['ihld_id','ID IHLD'], ['sto_code','STO'],
   ['branch','Branch'], ['district','District'], ['kabupaten_kota','Kab/Kota'],
@@ -96,7 +102,7 @@ const COLS = [
 ];
 // filter dropdown: kunci data -> id elemen
 const F = {regional:'fReg', branch:'fBranch', district:'fDist', sto_code:'fSto',
-           tipe_design:'fTipe', status:'fStatus', kabupaten_kota:'fKab', year:'fTahun'};
+           tipe_design:'fTipe', polygon_status:'fSP', design_status:'fSD', dsi_status:'fSI', kabupaten_kota:'fKab', year:'fTahun'};
 
 const distinct = (key, rows) => [...new Set(rows.map(r => r[key]).filter(nz))].sort((a,b) => String(a).localeCompare(String(b),'id',{numeric:true}));
 function fillSel(id, vals, label, labelOf){
@@ -167,7 +173,9 @@ $('csv').onclick = () => {
   ALL = data.map(r => ({...r, year: r.created_at ? new Date(r.created_at).getFullYear() : ''}));
   $('sCol').innerHTML = '<option value="*">Semua Kolom</option>' + COLS.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
   fillSel('fTipe', distinct('tipe_design', ALL), 'Semua Tipe');
-  fillSel('fStatus', ['submitted','revision','designed','completed'], 'Semua Status', v => SL[v]);
+  fillSel('fSP', ['submitted','revision'], 'Semua Status Polygon', v => PL[v]);
+  fillSel('fSD', ['ongoing','complete'], 'Semua Status Design', v => DL[v]);
+  fillSel('fSI', ['ongoing','complete'], 'Semua Status DSI', v => IL[v]);
   fillSel('fKab', distinct('kabupaten_kota', ALL), 'Semua Kab/Kota');
   fillSel('fTahun', distinct('year', ALL).reverse(), 'Semua Tahun');
   cascade(); apply();
