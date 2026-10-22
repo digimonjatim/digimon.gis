@@ -96,12 +96,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <div id="who" style="color:var(--mute);font-size:12px;margin-top:-10px"></div>
     <nav class="pnav"><a class="on" href="index.html">Peta Polygon</a><a href="table.html">Data Tabel</a></nav>
     <section>
-      <h2>Proyek FTTH</h2>
-      <select id="project" aria-label="Proyek"></select>
-      <div class="row" style="margin-top:8px">
-        <button id="newProject">Proyek baru</button>
-        <button id="logout">Keluar</button>
-      </div>
+      <button id="logout" type="button" style="width:100%">Keluar</button>
     </section>
     <section>
       <h2>Layer</h2>
@@ -111,7 +106,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <div id="count" style="color:var(--mute);font-size:12px"></div>
     </section>
     <section>
-      <h2>Area proyek</h2>
+      <h2>Daftar polygon</h2>
       <div id="areas"><span id="empty" style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span></div>
     </section>
   </aside>
@@ -205,7 +200,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
 const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Calon pelanggan'};
-let mode = null, project = null, timer;
+let mode = null, timer;
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3500)}
 const debounce=(fn,ms=300)=>(...a)=>{clearTimeout(timer);timer=setTimeout(()=>fn(...a),ms)};
@@ -285,7 +280,6 @@ function setEditPts(on){
   editPts=on; ui(); loadPoints();
 }
 function startDraw(kind){
-  if(!project) return toast('Pilih atau buat proyek dulu');
   if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   const same=drawH&&drawH._kind===kind;
   stopDraw(); if(same) return;
@@ -392,8 +386,7 @@ const areaLayer = f => {
 };
 async function loadAreas(){
   if(polyEditing){pendingReload=true;return}
-  if(!project){areas.clearLayers();renderList([]);return}
-  const {data,error}=await sb.rpc('get_areas',{p_project:project});
+  const {data,error}=await sb.rpc('get_areas');
   if(error) return toast(error.message);
   areas.clearLayers();
   data.features.forEach(f=>areas.addLayer(areaLayer(f)));
@@ -411,7 +404,7 @@ function renderList(fs){
     box.appendChild(d);
   });
 }
-const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_project:project,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
+const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
 map.on(L.Draw.Event.CREATED, async e=>{
   const geo=e.layer.toGeoJSON().geometry;
   closePanel(); clearPreview(); preview=e.layer; preview.setStyle({color:'#0e7c7b',dashArray:'6 4',weight:2,fillOpacity:.15}); preview.addTo(map);
@@ -432,7 +425,7 @@ const isPlan=()=>ROLE==='planner'||ROLE==='admin', isDes=()=>ROLE==='designer'||
 function applyRole(){
   $('who').textContent=ROLE?('Peran: '+({planner:'Planner (User A)',designer:'Designer (User B)',admin:'Admin'}[ROLE])):'Peran belum diatur';
   if(!ROLE) toast('Akun belum punya peran. Hubungi admin.');
-  if(!isPlan()){ $('bar').style.display='none'; $('newProject').style.display='none'; }
+  if(!isPlan()){ $('bar').style.display='none'; }
 }
 // ---- Resume Order (modal view) ----
 let viewId=null;
@@ -638,25 +631,9 @@ $('mSave').onclick=async()=>{
   if(!STO.some(x=>x.sto===sto)) return toast('Pilih STO yang valid dari daftar');
   let error;
   if(order.id){ ({error}=await sb.from('project_areas').update({name,sto_code:sto}).eq('id',order.id)); }
-  else { ({error}=await sb.rpc('upsert_area',{p_id:null,p_project:project,p_name:name,p_geojson:order.geo,p_code:order.code,p_sto:sto})); }
+  else { ({error}=await sb.rpc('upsert_area',{p_id:null,p_name:name,p_geojson:order.geo,p_code:order.code,p_sto:sto})); }
   if(error) return toast(error.message);
   const upd=!!order.id; closeOrder(); toast(upd?'Polygon diperbarui':'Order disubmit. Status: Submitted'); loadAreas();
-};
-
-// ---- Proyek ----
-async function loadProjects(){
-  const {data,error}=await sb.from('projects').select('id,name').order('created_at');
-  if(error) return toast(error.message);
-  const s=$('project'); s.innerHTML=data.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')||'<option value="">(belum ada proyek)</option>';
-  project=data.length?(data.find(p=>p.id===project)?.id||data[0].id):null; s.value=project||'';
-  loadAreas();
-}
-$('project').onchange=e=>{project=e.target.value||null;loadAreas()};
-$('newProject').onclick=async()=>{
-  const name=prompt('Nama proyek FTTH:'); if(!name) return;
-  const {data,error}=await sb.from('projects').insert({name:name.trim()}).select().single();
-  if(error) return toast(error.message);
-  project=data.id; loadProjects();
 };
 
 // ---- Realtime ----
@@ -672,7 +649,7 @@ map.on('moveend',debounce(loadPoints));
 async function start(){
   $('login').style.display='none';
   ROLE=(await sb.rpc('my_role')).data; applyRole();
-  await Promise.all([loadProjects(),loadSto()]);
+  await Promise.all([loadAreas(),loadSto()]);
   const {data}=await sb.rpc('data_extent');
   if(data) map.fitBounds([[data.s,data.w],[data.n,data.e]]); else loadPoints();
   subscribe();
