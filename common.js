@@ -3,9 +3,19 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nz = v => v !== null && v !== undefined && v !== '';
-const SL = {submitted:'Submitted', revision:'Revision', designed:'Designed', completed:'Completed'};
-const SC = {submitted:'#2563eb', revision:'#d97706', designed:'#7c3aed', completed:'#15803d'};
-const badge = st => `<span class="st" style="background:${SC[st]||'#666'}">${SL[st]||esc(st)}</span>`;
+const PL = {submitted:'Submitted Polygon', revision:'Revision Polygon'};
+const DL = {ongoing:'Ongoing Design', complete:'Design Complete'};
+const IL = {ongoing:'Ongoing DSI', complete:'DSI Complete'};
+const PC = {submitted:'#2563eb', revision:'#d97706'}, DC = {ongoing:'#64748b', complete:'#7c3aed'}, IC = {ongoing:'#64748b', complete:'#15803d'};
+const pill = (t, c) => `<span class="st" style="background:${c}">${t}</span>`;
+const bPoly = v => pill(PL[v] || esc(v), PC[v] || '#666');
+const bDesign = v => pill(DL[v] || esc(v), DC[v] || '#666');
+const bDsi = v => pill(IL[v] || esc(v), IC[v] || '#666');
+const badges = p => bPoly(p.polygon_status) + ' ' + bDesign(p.design_status) + ' ' + bDsi(p.dsi_status);
+const areaColor = p => p.dsi_status === 'complete' ? '#15803d' : p.design_status === 'complete' ? '#7c3aed' : p.polygon_status === 'revision' ? '#d97706' : '#2563eb';
+const locked = p => p.dsi_status === 'complete';                          // DSI Complete = terkunci
+const canUpload = p => p.dsi_status !== 'complete';                       // designer boleh upload / upload ulang
+const canDsi = p => p.design_status === 'complete' && p.dsi_status !== 'complete';
 const fmt = t => t ? new Date(t).toLocaleString('id-ID') : '';
 function ago(t){
   if(!t) return '';
