@@ -27,6 +27,7 @@ aside{overflow:auto;background:#f7f9f8;border-left:1px solid var(--line);padding
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
 .kv .full{grid-column:1/-1}
 .kv div>div{word-break:break-word}
+.kv input{width:100%;margin-top:2px}
 .btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 details summary{cursor:pointer;font-weight:600;font-size:13px}
 .li{padding:5px 0;border-bottom:1px solid #eef2f0;cursor:pointer;font-size:12px}
@@ -79,11 +80,44 @@ async function loadPoints(f, id){
   if(g.error) throw new Error(g.error.message);
   return {type:'FeatureCollection', features:g.data.features.filter(ft => inRing(ft.geometry.coordinates[0], ft.geometry.coordinates[1], ring))};
 }
+function makeMap(){
+  const map = L.map('map', {preferCanvas:true}).setView([-2.5, 118], 5);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri'});
+  L.control.layers({Peta:osm, Satelit:sat}, null, {position:'topright'}).addTo(map);
+  return map;
+}
+// Menu "View Design" tanpa ?id= : pilih polygon dari daftar atau dari peta
+async function picker(){
+  $('sub').textContent = 'Pilih polygon'; $('leg').style.display = 'none';
+  const map = makeMap();
+  const g = await sb.rpc('get_areas');
+  if(g.error){ $('side').innerHTML = `<div class="card">${esc(g.error.message)}</div>`; return toast(g.error.message); }
+  const feats = g.data.features, go = id => location.href = 'design.html?id=' + id;
+  const layer = L.geoJSON(feats, {
+    style:f => ({color:SC[f.properties.status], weight:2, fillOpacity:.15}),
+    onEachFeature:(f, l) => { l.bindTooltip(f.properties.code || ''); l.on('click', () => go(f.properties.id)); }
+  }).addTo(map);
+  if(feats.length) map.fitBounds(layer.getBounds(), {padding:[30,30]});
+  $('side').innerHTML = `<div class="card"><h3>Pilih polygon</h3>
+    <input id="pq" type="search" placeholder="Cari kode, nama, STO, proyek..." style="width:100%">
+    <div id="plist" style="margin-top:8px"></div></div>`;
+  const draw = () => {
+    const q = $('pq').value.trim().toLowerCase();
+    const rows = feats.map(f => f.properties).filter(p => !q || [p.code, p.name, p.sto_code, p.nama_proyek, p.tipe_design].join(' ').toLowerCase().includes(q))
+      .sort((a, b) => String(b.created_at || b.code).localeCompare(String(a.created_at || a.code))).slice(0, 100);
+    $('plist').innerHTML = rows.map(p => `<div class="li" data-id="${esc(p.id)}">${badge(p.status)} <b>${esc(p.code)}</b> ${esc(p.name)}<br><span class="mute">${esc(p.sto_code || '-')} · ${esc(p.nama_proyek || 'belum didesain')}</span></div>`).join('')
+      || '<span class="mute">Tidak ada polygon.</span>';
+    $('plist').querySelectorAll('.li').forEach(el => el.onclick = () => go(el.dataset.id));
+  };
+  $('pq').oninput = draw; draw();
+}
 const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><div>${nz(v) ? esc(v) : '<span class="mute">-</span>'}</div></div>`;
 
 (async () => {
   const role = await initPage('design'); if(!role) return;
-  if(!areaId){ location.href = 'table.html'; return; }
+  const flash = sessionStorage.getItem('flash'); if(flash){ toast(flash); sessionStorage.removeItem('flash'); }
+  if(!areaId){ await picker(); return; }
   let f, ptsData;
   try{
     f = await loadArea(areaId);
@@ -96,10 +130,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   document.title = `${p.code} - View Design`;
 
   // ---- Peta ----
-  const map = L.map('map', {preferCanvas:true});
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
-  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri'});
-  L.control.layers({Peta:osm, Satelit:sat}, null, {position:'topright'}).addTo(map);
+  const map = makeMap();
   const polyL = L.geoJSON(f, {style:{color:SC[p.status], weight:3, fillColor:'#f5e61a', fillOpacity:.25}}).addTo(map);
   const bounds = polyL.getBounds(); map.fitBounds(bounds, {padding:[30,30]});
 
@@ -146,11 +177,19 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     (p.kml_path ? Object.keys(kml).map(t => leg(kml[t], KS[t].c, KS[t].n, kc[t])).join('') : '<span class="mute">Belum ada KML</span>');
 
   // ---- Panel detail ----
+  const canUp = (role === 'designer' || role === 'admin') && ['submitted','revision','designed'].includes(p.status);
   const steps = ['submitted','revision','designed','completed'].map(x => `<span class="st" style="background:${x===p.status?SC[x]:'#cdd6d3'}">${SL[x]}</span>`).join('');
   $('side').innerHTML = `
     <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div></div>
     <div class="card" style="border-left:6px solid ${SC[p.status]}"><small>Status Order</small>
       <div class="big" style="color:${SC[p.status]}">${SL[p.status]}</div><div class="steps">${steps}</div></div>
+    ${canUp ? `<div class="card" id="upCard"><h3>${p.kml_path ? 'Upload ulang desain' : 'Upload desain'}</h3><div class="kv">
+      <div><small>ID IHLD (opsional)</small><input id="uIhld" maxlength="60" value="${esc(p.ihld_id || '')}"></div>
+      <div><small>Nama Proyek *</small><input id="uProyek" maxlength="120" value="${esc(p.nama_proyek || '')}"></div>
+      <div class="full"><small>Tipe Design *</small><input id="uTipe" list="tipeList" maxlength="60" autocomplete="off" value="${esc(p.tipe_design || '')}"><datalist id="tipeList"></datalist></div>
+      <div class="full"><small>Upload KML (.kml) *</small><input id="uKml" type="file" accept=".kml"></div>
+      <div class="full"><small>Upload BoQ (.xlsx) *</small><input id="uBoq" type="file" accept=".xlsx"></div></div>
+      <div class="btns"><button id="uGo" type="button" class="pri">Upload</button></div></div>` : ''}
     <div class="card"><h3>Informasi Desain</h3><div class="kv">
       ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Desain', p.tipe_design)}${kv('ID IHLD', p.ihld_id)}
       ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Calon Pelanggan', p.prospect)}${kv('DSI ID', p.dsi_id)}
@@ -159,7 +198,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
       <div class="btns">
         ${p.kml_path ? '<button id="dlK" type="button">Unduh KML</button>' : ''}
         ${p.boq_path ? '<button id="dlB" type="button">Unduh BoQ</button>' : ''}
-        <button id="zoomP" type="button">Zoom ke polygon</button></div></div>
+        <button id="zoomP" type="button">Zoom ke polygon</button><a class="btn" href="design.html">Pilih polygon lain</a></div></div>
     <div class="card"><h3>Wilayah Telkom</h3><div class="kv">
       ${kv('STO', p.sto_code)}${kv('Nama STO', s.nama_sto)}${kv('Area', s.area)}${kv('Regional', s.regional)}${kv('Branch', s.branch)}
       ${kv('Cluster', s.cluster)}${kv('WOK', s.wok)}${kv('District', s.district)}${kv('Sub District', s.sub_district)}${kv('Kabupaten/Kota', s.kabupaten_kota, 1)}</div></div>
@@ -168,6 +207,30 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
         ${items.length > 300 ? '<div class="mute">Menampilkan 300 objek pertama.</div>' : ''}</div></details>
     <details class="card" id="boqD"><summary>Preview BoQ</summary><div id="boqT" class="tw"></div></details>`;
 
+  if(canUp){
+    sb.from('project_areas').select('tipe_design').not('tipe_design', 'is', null).limit(1000).then(({data}) => {
+      $('tipeList').innerHTML = [...new Set((data || []).map(x => x.tipe_design))].map(t => `<option value="${esc(t)}">`).join('');
+    });
+    $('uGo').onclick = async () => {
+      const ihld = $('uIhld').value.trim(), proyek = $('uProyek').value.trim(), tipe = $('uTipe').value.trim();
+      const k = $('uKml').files[0], b = $('uBoq').files[0];
+      if(!proyek) return toast('Nama Proyek wajib diisi');
+      if(!tipe) return toast('Tipe Design wajib diisi');
+      if(!k || !b) return toast('Pilih file KML dan BoQ');
+      if(!/\.kml$/i.test(k.name) || !/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
+      $('uGo').disabled = true;
+      try{
+        parseKml(await k.text());                         // validasi KML sebelum upload
+        const t = Date.now(), safe = n => n.replace(/[^A-Za-z0-9._-]/g, '_');
+        const kp = `${areaId}/${t}_${safe(k.name)}`, bp = `${areaId}/${t}_${safe(b.name)}`, st = sb.storage.from('designs');
+        let r = await st.upload(kp, k, {contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) throw new Error(r.error.message);
+        r = await st.upload(bp, b); if(r.error) throw new Error(r.error.message);
+        const {error} = await sb.rpc('mark_designed', {p_area:areaId, p_kml:kp, p_boq:bp, p_ihld:ihld || null, p_proyek:proyek, p_tipe:tipe});
+        if(error) throw new Error(error.message);
+        sessionStorage.setItem('flash', 'Desain terupload. Status: Designed'); location.reload();
+      }catch(err){ toast(err.message); $('uGo').disabled = false; }
+    };
+  }
   if($('dlK')) $('dlK').onclick = () => dlFile(p.kml_path);
   if($('dlB')) $('dlB').onclick = () => dlFile(p.boq_path);
   $('zoomP').onclick = () => map.fitBounds(polyL.getBounds(), {padding:[30,30]});
