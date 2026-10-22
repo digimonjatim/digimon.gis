@@ -41,6 +41,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
 .pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
 .pop a{color:#0e7c7b}
+.pnav{display:flex;gap:6px;margin-top:-6px}.pnav a{flex:1;text-align:center;padding:7px 4px;border:1px solid var(--line);border-radius:6px;color:var(--text);text-decoration:none;font-size:13px}.pnav a.on{background:var(--text);color:var(--ink)}
 #mapwrap{position:relative;height:100%;min-width:0;overflow:hidden}
 #bar{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:4px;background:rgba(15,42,44,.95);padding:6px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.3);max-width:calc(100% - 16px);overflow-x:auto}
 #bar .grp{display:flex;align-items:center;gap:4px;padding:0 6px;border-left:1px solid var(--line)}
@@ -93,6 +94,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <aside>
     <h1>DIGIMON GIS</h1>
     <div id="who" style="color:var(--mute);font-size:12px;margin-top:-10px"></div>
+    <nav class="pnav"><a class="on" href="index.html">Peta Polygon</a><a href="table.html">Data Tabel</a></nav>
     <section>
       <h2>Proyek FTTH</h2>
       <select id="project" aria-label="Proyek"></select>
@@ -192,10 +194,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
 <script>
-// ====== KONFIGURASI ======
-const SUPABASE_URL = 'https://ydgkmaartnysppyonpub.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_P9DOBZjAe1th0L7X5UdvLg_uMpJb6u8';   // anon key aman di frontend karena RLS aktif
+// ====== KONFIGURASI ====== (URL & anon key ada di config.js)
 const MIN_ZOOM = 12, LIMIT = 5000;
 // =========================
 
@@ -459,6 +460,7 @@ function openView(id,ll){
   if(p.kml_path) a.push(`<button type="button" onclick="toggleKml('${id}')">${kmlLayers[id]?'Sembunyikan desain':'Lihat desain di peta'}</button>`);
   if(isDes()&&['submitted','revision','designed'].includes(p.status)) a.push(`<button type="button" onclick="closeView();uploadDesign('${id}')">Upload Desain</button>`);
   if(isPlan()&&p.status==='designed') a.push(`<button type="button" onclick="closeView();inputDsi('${id}')">Input DSI</button>`);
+  a.push(`<button type="button" onclick="location.href='design.html?id=${id}'">Halaman Desain</button>`);
   a.push('<button type="button" onclick="closeView()">Tutup</button>');
   if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
   $('vActs').innerHTML=a.join('');
