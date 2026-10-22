@@ -54,14 +54,44 @@ const areaId = new URLSearchParams(location.search).get('id');
 const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
 const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Calon Pelanggan'};
 const KS = {Point:{n:'Titik',c:'#7c3aed'}, LineString:{n:'Garis',c:'#e11d48'}, Polygon:{n:'Polygon',c:'#0891b2'}};
+const NOFN = 'PGRST202';   // kode error PostgREST: fungsi tidak ditemukan
+let compat = false;
+function inRing(x, y, r){ let c = false; for(let i = 0, j = r.length - 1; i < r.length; j = i++){ const [xi, yi] = r[i], [xj, yj] = r[j]; if((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+// Pakai get_area (005); jika belum terpasang, pakai get_areas + tabel project_areas
+async function loadArea(id){
+  const r = await sb.rpc('get_area', {p_id: id});
+  if(!r.error) return r.data;
+  if(r.error.code !== NOFN) throw new Error(r.error.message);
+  compat = true;
+  const g = await sb.rpc('get_areas', {p_project: null});
+  if(g.error) throw new Error(g.error.message);
+  const f = g.data.features.find(x => x.properties.id === id); if(!f) return null;
+  const t = await sb.from('project_areas').select('created_at,completed_at,projects(name)').eq('id', id).maybeSingle();
+  if(t.data){ f.properties.created_at = t.data.created_at; f.properties.completed_at = t.data.completed_at; f.properties.project_name = t.data.projects?.name; }
+  return f;
+}
+async function loadPoints(f, id){
+  const r = await sb.rpc('get_area_points', {p_id: id});
+  if(!r.error) return r.data;
+  if(r.error.code !== NOFN) throw new Error(r.error.message);
+  const ring = f.geometry.coordinates[0], xs = ring.map(c => c[0]), ys = ring.map(c => c[1]);
+  const g = await sb.rpc('get_points', {w:Math.min(...xs), s:Math.min(...ys), e:Math.max(...xs), n:Math.max(...ys), lim:5000});
+  if(g.error) throw new Error(g.error.message);
+  return {type:'FeatureCollection', features:g.data.features.filter(ft => inRing(ft.geometry.coordinates[0], ft.geometry.coordinates[1], ring))};
+}
 const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><div>${nz(v) ? esc(v) : '<span class="mute">-</span>'}</div></div>`;
 
 (async () => {
   const role = await initPage('design'); if(!role) return;
   if(!areaId){ location.href = 'table.html'; return; }
-  const [a, b] = await Promise.all([sb.rpc('get_area', {p_id: areaId}), sb.rpc('get_area_points', {p_id: areaId})]);
-  if(a.error || !a.data){ $('side').innerHTML = '<div class="card">Polygon tidak ditemukan atau Anda tidak punya akses.</div>'; return toast(a.error ? a.error.message : 'Polygon tidak ditemukan'); }
-  const f = a.data, p = f.properties, s = p.sto || {};
+  let f, ptsData;
+  try{
+    f = await loadArea(areaId);
+    if(!f) throw new Error('Polygon tidak ditemukan atau Anda tidak punya akses');
+    ptsData = await loadPoints(f, areaId);
+  }catch(err){ $('side').innerHTML = `<div class="card">${esc(err.message)}</div>`; return toast(err.message); }
+  const p = f.properties, s = p.sto || {};
+  if(compat) toast('Mode kompatibel: jalankan 005_pages.sql agar lebih cepat');
   $('ttl').textContent = p.nama_proyek || p.name; $('sub').textContent = p.tipe_design || '';
   document.title = `${p.code} - View Design`;
 
@@ -74,7 +104,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   const bounds = polyL.getBounds(); map.fitBounds(bounds, {padding:[30,30]});
 
   const groups = {customer:L.layerGroup(), odp:L.layerGroup(), prospect:L.layerGroup()}, cnt = {customer:0, odp:0, prospect:0};
-  (b.data?.features || []).forEach(ft => {
+  (ptsData.features || []).forEach(ft => {
     const q = ft.properties, [x, y] = ft.geometry.coordinates; cnt[q.kind]++;
     L.circleMarker([y, x], {radius:q.kind==='customer'?4:7, color:'#fff', weight:1, fillColor:COL[q.kind], fillOpacity:.95})
       .bindPopup(`<b>${LABEL[q.kind]}</b>${q.un_id?'<br>UN ID: '+esc(q.un_id):''}${q.name?'<br>'+esc(q.name):''}`).addTo(groups[q.kind]);
