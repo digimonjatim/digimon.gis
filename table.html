@@ -41,7 +41,7 @@ tbody tr:hover td{background:#f7faf8}
     <div class="grid4">
       <div><label for="fTipe">Tipe Desain</label><select id="fTipe"></select></div>
       <div><label for="fStatus">Status</label><select id="fStatus"></select></div>
-      <div><label for="fProyek">Proyek FTTH</label><select id="fProyek"></select></div>
+      <div><label for="fKab">Kabupaten/Kota</label><select id="fKab"></select></div>
       <div><label for="fTahun">Tahun</label><select id="fTahun"></select></div>
     </div>
     <div class="acts">
@@ -69,14 +69,14 @@ async function loadRows(){
   if(!r.error) return r.data;
   if(r.error.code !== 'PGRST202') throw new Error(r.error.message);
   toast('Mode kompatibel: jalankan 005_pages.sql agar lebih cepat');
-  const [g, t] = await Promise.all([sb.rpc('get_areas', {p_project: null}),
-    sb.from('project_areas').select('id,created_at,updated_at,completed_at,projects(name)').range(0, 4999)]);
+  const [g, t] = await Promise.all([sb.rpc('get_areas'),
+    sb.from('project_areas').select('id,created_at,updated_at,completed_at').range(0, 4999)]);
   if(g.error) throw new Error(g.error.message);
   if(t.error) throw new Error(t.error.message);
   const m = new Map(t.data.map(x => [x.id, x]));
   return g.data.features.map(f => {
     const p = f.properties, s = p.sto || {}, x = m.get(p.id) || {};
-    return {id:p.id, code:p.code, name:p.name, status:p.status, project_id:p.project_id, project_name:x.projects?.name,
+    return {id:p.id, code:p.code, name:p.name, status:p.status,
       sto_code:p.sto_code, nama_sto:s.nama_sto, area:s.area, regional:s.regional, branch:s.branch, cluster:s.cluster, wok:s.wok,
       district:s.district, sub_district:s.sub_district, kabupaten_kota:s.kabupaten_kota,
       ihld_id:p.ihld_id, nama_proyek:p.nama_proyek, tipe_design:p.tipe_design, kml_path:p.kml_path, boq_path:p.boq_path,
@@ -96,7 +96,7 @@ const COLS = [
 ];
 // filter dropdown: kunci data -> id elemen
 const F = {regional:'fReg', branch:'fBranch', district:'fDist', sto_code:'fSto',
-           tipe_design:'fTipe', status:'fStatus', project_name:'fProyek', year:'fTahun'};
+           tipe_design:'fTipe', status:'fStatus', kabupaten_kota:'fKab', year:'fTahun'};
 
 const distinct = (key, rows) => [...new Set(rows.map(r => r[key]).filter(nz))].sort((a,b) => String(a).localeCompare(String(b),'id',{numeric:true}));
 function fillSel(id, vals, label, labelOf){
@@ -116,7 +116,7 @@ function apply(){
   VIEW = ALL.filter(r => {
     for(const [k,id] of Object.entries(F)){ const v = $(id).value; if(v && String(r[k] ?? '') !== v) return false; }
     if(q){
-      const hay = col === '*' ? [...COLS.map(c => r[c[0]]), r.nama_sto, r.project_name, r.dsi_name].join(' ') : String(r[col] ?? '');
+      const hay = col === '*' ? [...COLS.map(c => r[c[0]]), r.nama_sto, r.dsi_name].join(' ') : String(r[col] ?? '');
       if(!hay.toLowerCase().includes(q)) return false;
     }
     return true;
@@ -168,7 +168,7 @@ $('csv').onclick = () => {
   $('sCol').innerHTML = '<option value="*">Semua Kolom</option>' + COLS.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
   fillSel('fTipe', distinct('tipe_design', ALL), 'Semua Tipe');
   fillSel('fStatus', ['submitted','revision','designed','completed'], 'Semua Status', v => SL[v]);
-  fillSel('fProyek', distinct('project_name', ALL), 'Semua Proyek');
+  fillSel('fKab', distinct('kabupaten_kota', ALL), 'Semua Kab/Kota');
   fillSel('fTahun', distinct('year', ALL).reverse(), 'Semua Tahun');
   cascade(); apply();
 })();
