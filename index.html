@@ -12,7 +12,11 @@
 --cust:#4b8f6b;--odp:#e8731a;--pros:#2563eb;--poly:#0e7c7b}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:14px}
-#app{display:grid;grid-template-columns:300px 1fr;height:100%}
+body{display:flex;flex-direction:column}
+#app{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0}
+.top{display:flex;align-items:center;gap:14px;background:var(--ink);color:#e6efec;padding:0 16px;height:48px;flex:none;border-bottom:1px solid #1d3d3f}
+.top nav{display:flex;gap:4px}.top nav a{color:#bcd0cc;text-decoration:none;padding:6px 12px;border-radius:8px}.top nav a.on{background:#e6efec;color:var(--ink)}
+.top .sp{flex:1}.top .sub{color:#8fa9a6;font-size:12px}.top button{padding:6px 12px}
 aside{background:var(--side);color:var(--text);padding:16px;overflow:auto;display:flex;flex-direction:column;gap:18px}
 h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
 h2{font-size:13px;margin:0 0 8px;font-weight:600;color:var(--mute)}
@@ -41,7 +45,6 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
 .pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
 .pop a{color:#0e7c7b}
-.pnav{display:flex;gap:6px;margin-top:-6px}.pnav a{flex:1;text-align:center;padding:7px 4px;border:1px solid var(--line);border-radius:6px;color:var(--text);text-decoration:none;font-size:13px}.pnav a.on{background:var(--text);color:var(--ink)}
 #mapwrap{position:relative;height:100%;min-width:0;overflow:hidden}
 #bar{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:4px;background:rgba(15,42,44,.95);padding:6px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.3);max-width:calc(100% - 16px);overflow-x:auto}
 #bar .grp{display:flex;align-items:center;gap:4px;padding:0 6px;border-left:1px solid var(--line)}
@@ -90,14 +93,11 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   </form>
 </div>
 
+<header class="top"><b>DIGIMON GIS</b>
+  <nav><a class="on" href="index.html">Peta Polygon</a><a href="design.html">View Design</a><a href="table.html">Data Tabel</a></nav>
+  <span class="sp"></span><span class="sub" id="who"></span><button id="logout" type="button">Keluar</button></header>
 <div id="app">
   <aside>
-    <h1>DIGIMON GIS</h1>
-    <div id="who" style="color:var(--mute);font-size:12px;margin-top:-10px"></div>
-    <nav class="pnav"><a class="on" href="index.html">Peta Polygon</a><a href="table.html">Data Tabel</a></nav>
-    <section>
-      <button id="logout" type="button" style="width:100%">Keluar</button>
-    </section>
     <section>
       <h2>Layer</h2>
       <label class="lg"><input type="checkbox" data-k="customer" checked style="width:auto"><span class="dot" style="background:var(--cust)"></span>Pelanggan (UN ID)</label>
@@ -451,9 +451,8 @@ function openView(id,ll){
   if(canEdit) a.push(`<button type="button" class="dng" onclick="deleteArea('${id}')">Hapus</button>`);
   a.push('<span class="sp"></span>');
   if(p.kml_path) a.push(`<button type="button" onclick="toggleKml('${id}')">${kmlLayers[id]?'Sembunyikan desain':'Lihat desain di peta'}</button>`);
-  if(isDes()&&['submitted','revision','designed'].includes(p.status)) a.push(`<button type="button" onclick="closeView();uploadDesign('${id}')">Upload Desain</button>`);
   if(isPlan()&&p.status==='designed') a.push(`<button type="button" onclick="closeView();inputDsi('${id}')">Input DSI</button>`);
-  a.push(`<button type="button" onclick="location.href='design.html?id=${id}'">Halaman Desain</button>`);
+  a.push(`<button type="button" onclick="location.href='design.html?id=${id}'">${isDes()&&['submitted','revision','designed'].includes(p.status)?'Upload di Halaman Desain':'Halaman Desain'}</button>`);
   a.push('<button type="button" onclick="closeView()">Tutup</button>');
   if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
   $('vActs').innerHTML=a.join('');
@@ -491,34 +490,6 @@ $('m2Save').onclick=async()=>{
   if(!dlgSave) return; $('m2Save').disabled=true;
   try{await dlgSave()}catch(err){toast(err.message)}finally{$('m2Save').disabled=false}
 };
-function uploadDesign(id){
-  map.closePopup();
-  const cur=areaFeatures.find(f=>f.properties.id===id)?.properties||{};
-  const types=[...new Set(areaFeatures.map(f=>f.properties.tipe_design).filter(Boolean))];
-  openDialog('Upload desain','Nama Proyek dan Tipe Design wajib. KML dan BoQ wajib. Setelah berhasil, status menjadi Designed.',
-    `<div><label for="uIhld">ID IHLD (opsional)</label><input id="uIhld" maxlength="60" value="${esc(cur.ihld_id||'')}"></div>
-     <div><label for="uProyek">Nama Proyek *</label><input id="uProyek" maxlength="120" value="${esc(cur.nama_proyek||'')}"></div>
-     <div class="full"><label for="uTipe">Tipe Design *</label><input id="uTipe" list="tipeList" maxlength="60" autocomplete="off" value="${esc(cur.tipe_design||'')}"><datalist id="tipeList">${types.map(t=>`<option value="${esc(t)}">`).join('')}</datalist></div>
-     <div class="full"><label for="uKml">Upload KML (.kml) *</label><input id="uKml" type="file" accept=".kml"></div>
-     <div class="full"><label for="uBoq">Upload BoQ (.xlsx) *</label><input id="uBoq" type="file" accept=".xlsx"></div>`,
-    async()=>{
-      const ihld=$('uIhld').value.trim(), proyek=$('uProyek').value.trim(), tipe=$('uTipe').value.trim();
-      const k=$('uKml').files[0], b=$('uBoq').files[0];
-      if(!proyek) return toast('Nama Proyek wajib diisi');
-      if(!tipe) return toast('Tipe Design wajib diisi');
-      if(!k||!b) return toast('Pilih file KML dan BoQ');
-      if(!/\.kml$/i.test(k.name)||!/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
-      try{ parseKml(await k.text()) }catch(err){ return toast(err.message) }   // validasi KML sebelum upload
-      const t=Date.now(), safe=n=>n.replace(/[^A-Za-z0-9._-]/g,'_');
-      const kp=`${id}/${t}_${safe(k.name)}`, bp=`${id}/${t}_${safe(b.name)}`, st=sb.storage.from('designs');
-      let r=await st.upload(kp,k,{contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) return toast(r.error.message);
-      r=await st.upload(bp,b); if(r.error) return toast(r.error.message);
-      const {error}=await sb.rpc('mark_designed',{p_area:id,p_kml:kp,p_boq:bp,p_ihld:ihld||null,p_proyek:proyek,p_tipe:tipe});
-      if(error) return toast(error.message);
-      closeDialog(); toast('Desain terupload. Status: Designed');
-      await loadAreas(); showKml(id);
-    });
-}
 // ---- KML di peta (terhubung ke Polygon ID) ----
 function parseKml(text){
   const doc=new DOMParser().parseFromString(text,'text/xml');
