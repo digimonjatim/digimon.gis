@@ -63,11 +63,11 @@ async function loadArea(id){
   if(!r.error) return r.data;
   if(r.error.code !== NOFN) throw new Error(r.error.message);
   compat = true;
-  const g = await sb.rpc('get_areas', {p_project: null});
+  const g = await sb.rpc('get_areas');
   if(g.error) throw new Error(g.error.message);
   const f = g.data.features.find(x => x.properties.id === id); if(!f) return null;
-  const t = await sb.from('project_areas').select('created_at,completed_at,projects(name)').eq('id', id).maybeSingle();
-  if(t.data){ f.properties.created_at = t.data.created_at; f.properties.completed_at = t.data.completed_at; f.properties.project_name = t.data.projects?.name; }
+  const t = await sb.from('project_areas').select('created_at,completed_at').eq('id', id).maybeSingle();
+  if(t.data){ f.properties.created_at = t.data.created_at; f.properties.completed_at = t.data.completed_at; }
   return f;
 }
 async function loadPoints(f, id){
@@ -148,8 +148,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   // ---- Panel detail ----
   const steps = ['submitted','revision','designed','completed'].map(x => `<span class="st" style="background:${x===p.status?SC[x]:'#cdd6d3'}">${SL[x]}</span>`).join('');
   $('side').innerHTML = `
-    <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div>
-      <small style="margin-top:6px">Proyek FTTH: ${esc(p.project_name || '-')}</small></div>
+    <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div></div>
     <div class="card" style="border-left:6px solid ${SC[p.status]}"><small>Status Order</small>
       <div class="big" style="color:${SC[p.status]}">${SL[p.status]}</div><div class="steps">${steps}</div></div>
     <div class="card"><h3>Informasi Desain</h3><div class="kv">
