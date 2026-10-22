@@ -63,6 +63,27 @@ tbody tr:hover td{background:#f7faf8}
 <script src="common.js"></script>
 <script>
 const PER = 25;
+// Pakai list_areas (005); jika belum terpasang, susun dari get_areas + tabel project_areas
+async function loadRows(){
+  const r = await sb.rpc('list_areas');
+  if(!r.error) return r.data;
+  if(r.error.code !== 'PGRST202') throw new Error(r.error.message);
+  toast('Mode kompatibel: jalankan 005_pages.sql agar lebih cepat');
+  const [g, t] = await Promise.all([sb.rpc('get_areas', {p_project: null}),
+    sb.from('project_areas').select('id,created_at,updated_at,completed_at,projects(name)').range(0, 4999)]);
+  if(g.error) throw new Error(g.error.message);
+  if(t.error) throw new Error(t.error.message);
+  const m = new Map(t.data.map(x => [x.id, x]));
+  return g.data.features.map(f => {
+    const p = f.properties, s = p.sto || {}, x = m.get(p.id) || {};
+    return {id:p.id, code:p.code, name:p.name, status:p.status, project_id:p.project_id, project_name:x.projects?.name,
+      sto_code:p.sto_code, nama_sto:s.nama_sto, area:s.area, regional:s.regional, branch:s.branch, cluster:s.cluster, wok:s.wok,
+      district:s.district, sub_district:s.sub_district, kabupaten_kota:s.kabupaten_kota,
+      ihld_id:p.ihld_id, nama_proyek:p.nama_proyek, tipe_design:p.tipe_design, kml_path:p.kml_path, boq_path:p.boq_path,
+      designed_at:p.designed_at, dsi_id:p.dsi_id, dsi_name:p.dsi_name, completed_at:x.completed_at,
+      created_at:x.created_at, updated_at:x.updated_at, customer:p.customer, odp:p.odp, prospect:p.prospect};
+  }).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+}
 let ALL = [], VIEW = [], sortKey = 'created_at', sortDir = -1, page = 1;
 // [kunci, judul, (opsional) render kustom]
 const COLS = [
@@ -141,8 +162,8 @@ $('csv').onclick = () => {
 (async () => {
   const role = await initPage('table'); if(!role) return;
   $('ttl').textContent = 'Data Order Polygon'; $('sub').textContent = 'Pencarian dan filter data';
-  const {data, error} = await sb.rpc('list_areas');
-  if(error) return toast(error.message);
+  let data;
+  try{ data = await loadRows(); }catch(err){ return toast(err.message); }
   ALL = data.map(r => ({...r, year: r.created_at ? new Date(r.created_at).getFullYear() : ''}));
   $('sCol').innerHTML = '<option value="*">Semua Kolom</option>' + COLS.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
   fillSel('fTipe', distinct('tipe_design', ALL), 'Semua Tipe');
