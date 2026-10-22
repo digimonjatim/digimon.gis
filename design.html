@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>View Design - DIGIMON GIS</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+body{display:flex;flex-direction:column}
+.wrap{flex:1;display:grid;grid-template-columns:1fr 380px;min-height:0}
+#mapbox{position:relative;min-height:0}
+#map{height:100%}
+.leg{position:absolute;left:10px;top:84px;z-index:1000;background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-size:12px;width:210px}
+.leg h4{margin:0 0 4px;font-size:12px}
+.leg h4:not(:first-child){margin-top:8px;padding-top:6px;border-top:1px solid #e3e9e6}
+.leg label{display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer}
+.leg .n{margin-left:auto;color:var(--mute)}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+aside{overflow:auto;background:#f7f9f8;border-left:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:13px;color:var(--acc)}
+.card small{color:var(--mute);display:block;font-size:11px}
+.big{font-size:18px;font-weight:600;word-break:break-word}
+.steps{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.kv .full{grid-column:1/-1}
+.kv div>div{word-break:break-word}
+.btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+details summary{cursor:pointer;font-weight:600;font-size:13px}
+.li{padding:5px 0;border-bottom:1px solid #eef2f0;cursor:pointer;font-size:12px}
+.li:hover{color:var(--acc)}
+.tw{overflow:auto;max-height:320px;margin-top:8px}
+.tw table{border-collapse:collapse;font-size:11px}
+.tw td{border:1px solid #e3e9e6;padding:3px 6px;white-space:nowrap}
+@media(max-width:900px){body{height:auto}.wrap{grid-template-columns:1fr;grid-template-rows:55vh auto}}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div id="mapbox"><div id="map"></div><div class="leg" id="leg"></div></div>
+  <aside id="side"></aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+const areaId = new URLSearchParams(location.search).get('id');
+const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
+const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Calon Pelanggan'};
+const KS = {Point:{n:'Titik',c:'#7c3aed'}, LineString:{n:'Garis',c:'#e11d48'}, Polygon:{n:'Polygon',c:'#0891b2'}};
+const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><div>${nz(v) ? esc(v) : '<span class="mute">-</span>'}</div></div>`;
+
+(async () => {
+  const role = await initPage('design'); if(!role) return;
+  if(!areaId){ location.href = 'table.html'; return; }
+  const [a, b] = await Promise.all([sb.rpc('get_area', {p_id: areaId}), sb.rpc('get_area_points', {p_id: areaId})]);
+  if(a.error || !a.data){ $('side').innerHTML = '<div class="card">Polygon tidak ditemukan atau Anda tidak punya akses.</div>'; return toast(a.error ? a.error.message : 'Polygon tidak ditemukan'); }
+  const f = a.data, p = f.properties, s = p.sto || {};
+  $('ttl').textContent = p.nama_proyek || p.name; $('sub').textContent = p.tipe_design || '';
+  document.title = `${p.code} - View Design`;
+
+  // ---- Peta ----
+  const map = L.map('map', {preferCanvas:true});
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri'});
+  L.control.layers({Peta:osm, Satelit:sat}, null, {position:'topright'}).addTo(map);
+  const polyL = L.geoJSON(f, {style:{color:SC[p.status], weight:3, fillColor:'#f5e61a', fillOpacity:.25}}).addTo(map);
+  const bounds = polyL.getBounds(); map.fitBounds(bounds, {padding:[30,30]});
+
+  const groups = {customer:L.layerGroup(), odp:L.layerGroup(), prospect:L.layerGroup()}, cnt = {customer:0, odp:0, prospect:0};
+  (b.data?.features || []).forEach(ft => {
+    const q = ft.properties, [x, y] = ft.geometry.coordinates; cnt[q.kind]++;
+    L.circleMarker([y, x], {radius:q.kind==='customer'?4:7, color:'#fff', weight:1, fillColor:COL[q.kind], fillOpacity:.95})
+      .bindPopup(`<b>${LABEL[q.kind]}</b>${q.un_id?'<br>UN ID: '+esc(q.un_id):''}${q.name?'<br>'+esc(q.name):''}`).addTo(groups[q.kind]);
+    groups[q.kind].addTo(map);
+  });
+
+  // ---- KML desain ----
+  const kml = {Point:L.layerGroup(), LineString:L.layerGroup(), Polygon:L.layerGroup()}, kc = {Point:0, LineString:0, Polygon:0}, items = [];
+  let kmlMsg = p.kml_path ? '' : 'Desain belum diupload.';
+  if(p.kml_path){
+    const {data, error} = await sb.storage.from('designs').download(p.kml_path);
+    try{
+      if(error) throw new Error(error.message);
+      const gj = parseKml(await data.text());
+      gj.features.forEach(ft => {
+        const t = ft.geometry.type, name = ft.properties.name || '(tanpa nama)';
+        const l = L.geoJSON(ft, {
+          style:() => ({color:KS[t].c, weight:t==='Polygon'?2:3, fillOpacity:.1}),
+          pointToLayer:(g, ll) => L.circleMarker(ll, {radius:5, color:'#fff', weight:1, fillColor:KS.Point.c, fillOpacity:1})
+        });
+        const inner = l.getLayers()[0];
+        inner.bindPopup(`<b>${esc(name)}</b>${ft.properties.desc ? '<br>' + esc(ft.properties.desc.slice(0, 300)) : ''}`);
+        kml[t].addLayer(l); kc[t]++; items.push({name, t, l:inner});
+      });
+      Object.values(kml).forEach(g => { g.addTo(map); g.eachLayer(l => bounds.extend(l.getBounds())); });
+      map.fitBounds(bounds, {padding:[30,30]});
+    }catch(err){ kmlMsg = 'Gagal memuat KML: ' + err.message; }
+  }
+
+  // ---- Legend (centang untuk tampil/sembunyi) ----
+  const leg = (layer, color, label, n) => {
+    const id = 'lg' + Math.random().toString(36).slice(2, 7);
+    setTimeout(() => $(id).onchange = e => e.target.checked ? map.addLayer(layer) : map.removeLayer(layer));
+    return `<label><input type="checkbox" id="${id}" checked><span class="dot" style="background:${color}"></span>${label}<span class="n">${n}</span></label>`;
+  };
+  $('leg').innerHTML = '<h4>Titik dalam polygon</h4>' +
+    Object.keys(groups).map(k => leg(groups[k], COL[k], LABEL[k], cnt[k])).join('') +
+    '<h4>Objek desain (KML)</h4>' +
+    (p.kml_path ? Object.keys(kml).map(t => leg(kml[t], KS[t].c, KS[t].n, kc[t])).join('') : '<span class="mute">Belum ada KML</span>');
+
+  // ---- Panel detail ----
+  const steps = ['submitted','revision','designed','completed'].map(x => `<span class="st" style="background:${x===p.status?SC[x]:'#cdd6d3'}">${SL[x]}</span>`).join('');
+  $('side').innerHTML = `
+    <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div>
+      <small style="margin-top:6px">Proyek FTTH: ${esc(p.project_name || '-')}</small></div>
+    <div class="card" style="border-left:6px solid ${SC[p.status]}"><small>Status Order</small>
+      <div class="big" style="color:${SC[p.status]}">${SL[p.status]}</div><div class="steps">${steps}</div></div>
+    <div class="card"><h3>Informasi Desain</h3><div class="kv">
+      ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Desain', p.tipe_design)}${kv('ID IHLD', p.ihld_id)}
+      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Calon Pelanggan', p.prospect)}${kv('DSI ID', p.dsi_id)}
+      ${kv('DSI Name', p.dsi_name, 1)}${kv('Disubmit', fmt(p.created_at))}${kv('Didesain', fmt(p.designed_at))}
+      ${p.completed_at ? kv('Completed', fmt(p.completed_at), 1) : ''}</div>
+      <div class="btns">
+        ${p.kml_path ? '<button id="dlK" type="button">Unduh KML</button>' : ''}
+        ${p.boq_path ? '<button id="dlB" type="button">Unduh BoQ</button>' : ''}
+        <button id="zoomP" type="button">Zoom ke polygon</button></div></div>
+    <div class="card"><h3>Wilayah Telkom</h3><div class="kv">
+      ${kv('STO', p.sto_code)}${kv('Nama STO', s.nama_sto)}${kv('Area', s.area)}${kv('Regional', s.regional)}${kv('Branch', s.branch)}
+      ${kv('Cluster', s.cluster)}${kv('WOK', s.wok)}${kv('District', s.district)}${kv('Sub District', s.sub_district)}${kv('Kabupaten/Kota', s.kabupaten_kota, 1)}</div></div>
+    <details class="card" id="kmlD"><summary>Objek KML (${items.length})</summary>
+      <div id="kmlList">${kmlMsg ? `<span class="mute">${esc(kmlMsg)}</span>` : items.slice(0, 300).map((it, i) => `<div class="li" data-i="${i}">${esc(it.name)} <span class="mute">· ${KS[it.t].n}</span></div>`).join('')}
+        ${items.length > 300 ? '<div class="mute">Menampilkan 300 objek pertama.</div>' : ''}</div></details>
+    <details class="card" id="boqD"><summary>Preview BoQ</summary><div id="boqT" class="tw"></div></details>`;
+
+  if($('dlK')) $('dlK').onclick = () => dlFile(p.kml_path);
+  if($('dlB')) $('dlB').onclick = () => dlFile(p.boq_path);
+  $('zoomP').onclick = () => map.fitBounds(polyL.getBounds(), {padding:[30,30]});
+  $('kmlList').querySelectorAll('.li').forEach(el => el.onclick = () => {
+    const l = items[+el.dataset.i].l;
+    l.getBounds ? map.fitBounds(l.getBounds(), {maxZoom:19, padding:[40,40]}) : map.setView(l.getLatLng(), 19);
+    l.openPopup();
+  });
+
+  // Preview BoQ (dimuat saat panel dibuka)
+  let boqDone = false;
+  $('boqD').addEventListener('toggle', async () => {
+    if(!$('boqD').open || boqDone) return; boqDone = true;
+    if(!p.boq_path){ $('boqT').innerHTML = '<span class="mute">Belum ada BoQ.</span>'; return; }
+    $('boqT').textContent = 'Memuat...';
+    const {data, error} = await sb.storage.from('designs').download(p.boq_path);
+    if(error){ $('boqT').textContent = error.message; return; }
+    try{
+      const wb = XLSX.read(await data.arrayBuffer());
+      const name = wb.SheetNames[0], rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:''}).slice(0, 200);
+      $('boqT').innerHTML = `<small>Sheet: ${esc(name)} · ${rows.length} baris pertama</small><table>` +
+        rows.map(r => '<tr>' + r.slice(0, 15).map(c => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') + '</table>';
+    }catch(err){ $('boqT').textContent = 'Gagal membaca BoQ: ' + err.message; }
+  });
+})();
+</script>
+</body>
+</html>

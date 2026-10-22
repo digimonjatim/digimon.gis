@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Tabel - DIGIMON GIS</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css">
+<style>
+main{padding:16px;max-width:1600px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.grid4 label,.srch label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
+.grid4 select,.srch select,.srch input{width:100%}
+.srch{display:grid;grid-template-columns:260px 1fr;gap:10px;margin:12px 0}
+.acts{display:flex;gap:8px;align-items:center;margin-top:12px}
+.acts .sp{flex:1}
+.tw{overflow:auto;max-height:68vh}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{position:sticky;top:0;background:#fff;text-align:left;font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--mute);padding:10px 8px;border-bottom:2px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+td{padding:9px 8px;border-bottom:1px solid #e9eeeb;vertical-align:top}
+tbody tr:hover td{background:#f7faf8}
+.pg{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:10px}
+@media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}.srch{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+<main>
+  <section class="card">
+    <div class="grid4">
+      <div><label for="fReg">Regional</label><select id="fReg"></select></div>
+      <div><label for="fBranch">Branch</label><select id="fBranch"></select></div>
+      <div><label for="fDist">District</label><select id="fDist"></select></div>
+      <div><label for="fSto">STO</label><select id="fSto"></select></div>
+    </div>
+    <div class="srch">
+      <div><label for="sCol">Cari di kolom</label><select id="sCol"></select></div>
+      <div><label for="sQ">Pencarian</label><input id="sQ" type="search" placeholder="Ketik kata kunci, tekan Enter"></div>
+    </div>
+    <div class="grid4">
+      <div><label for="fTipe">Tipe Desain</label><select id="fTipe"></select></div>
+      <div><label for="fStatus">Status</label><select id="fStatus"></select></div>
+      <div><label for="fProyek">Proyek FTTH</label><select id="fProyek"></select></div>
+      <div><label for="fTahun">Tahun</label><select id="fTahun"></select></div>
+    </div>
+    <div class="acts">
+      <button id="apply" type="button" class="pri">Terapkan Filter</button>
+      <button id="reset" type="button">Reset</button>
+      <span class="sp"></span>
+      <span id="cnt" class="mute"></span>
+      <button id="csv" type="button">Unduh CSV</button>
+    </div>
+  </section>
+  <section class="card">
+    <div class="tw"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+    <div class="pg"><button id="prev" type="button">Sebelumnya</button><span id="pgi" class="mute"></span><button id="next" type="button">Berikutnya</button></div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+const PER = 25;
+let ALL = [], VIEW = [], sortKey = 'created_at', sortDir = -1, page = 1;
+// [kunci, judul, (opsional) render kustom]
+const COLS = [
+  ['status','Status', r => badge(r.status)],
+  ['code','Polygon ID'], ['name','Nama Polygon'], ['nama_proyek','Nama Proyek'],
+  ['tipe_design','Tipe Desain'], ['ihld_id','ID IHLD'], ['sto_code','STO'],
+  ['branch','Branch'], ['district','District'], ['kabupaten_kota','Kab/Kota'],
+  ['customer','Pelanggan'], ['odp','ODP'], ['dsi_id','DSI ID'],
+  ['created_at','Disubmit', r => `${esc(fmt(r.created_at))}<br><small class="mute">${esc(ago(r.created_at))}</small>`]
+];
+// filter dropdown: kunci data -> id elemen
+const F = {regional:'fReg', branch:'fBranch', district:'fDist', sto_code:'fSto',
+           tipe_design:'fTipe', status:'fStatus', project_name:'fProyek', year:'fTahun'};
+
+const distinct = (key, rows) => [...new Set(rows.map(r => r[key]).filter(nz))].sort((a,b) => String(a).localeCompare(String(b),'id',{numeric:true}));
+function fillSel(id, vals, label, labelOf){
+  const el = $(id), cur = el.value;
+  el.innerHTML = `<option value="">${label}</option>` + vals.map(v => `<option value="${esc(v)}">${esc(labelOf ? labelOf(v) : v)}</option>`).join('');
+  if(vals.map(String).includes(cur)) el.value = cur;
+}
+function cascade(){            // Regional -> Branch -> District -> STO saling menyaring
+  let rows = ALL;
+  for(const [k,id,l] of [['regional','fReg','Semua Regional'],['branch','fBranch','Semua Branch'],['district','fDist','Semua District'],['sto_code','fSto','Semua STO']]){
+    fillSel(id, distinct(k, rows), l);
+    const v = $(id).value; if(v) rows = rows.filter(r => String(r[k]) === v);
+  }
+}
+function apply(){
+  const q = $('sQ').value.trim().toLowerCase(), col = $('sCol').value;
+  VIEW = ALL.filter(r => {
+    for(const [k,id] of Object.entries(F)){ const v = $(id).value; if(v && String(r[k] ?? '') !== v) return false; }
+    if(q){
+      const hay = col === '*' ? [...COLS.map(c => r[c[0]]), r.nama_sto, r.project_name, r.dsi_name].join(' ') : String(r[col] ?? '');
+      if(!hay.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  doSort(); page = 1; render();
+}
+function doSort(){
+  VIEW.sort((a,b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const c = (typeof x === 'number' && typeof y === 'number') ? x - y : String(x ?? '').localeCompare(String(y ?? ''), 'id', {numeric:true});
+    return c * sortDir;
+  });
+}
+function render(){
+  const pages = Math.max(1, Math.ceil(VIEW.length / PER)); page = Math.min(page, pages);
+  $('thead').innerHTML = '<tr>' + COLS.map(c => `<th data-k="${c[0]}">${c[1]}${sortKey===c[0] ? (sortDir>0?' ▲':' ▼') : ''}</th>`).join('') + '<th></th></tr>';
+  $('thead').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; sortDir = (k === sortKey) ? -sortDir : 1; sortKey = k; doSort(); render();
+  });
+  const rows = VIEW.slice((page-1)*PER, page*PER);
+  $('tbody').innerHTML = rows.map(r => '<tr>' + COLS.map(c =>
+      `<td>${c[2] ? c[2](r) : nz(r[c[0]]) ? esc(r[c[0]]) : '<span class="mute">-</span>'}</td>`).join('') +
+      `<td><a class="btn" href="design.html?id=${esc(r.id)}">Lihat</a></td></tr>`).join('')
+    || `<tr><td colspan="${COLS.length+1}" class="mute" style="padding:20px">Tidak ada data yang cocok</td></tr>`;
+  $('cnt').textContent = `${VIEW.length} dari ${ALL.length} data`;
+  $('pgi').textContent = `Hal ${page} / ${pages}`;
+  $('prev').disabled = page <= 1; $('next').disabled = page >= pages;
+}
+$('prev').onclick = () => { page--; render(); };
+$('next').onclick = () => { page++; render(); };
+$('apply').onclick = apply;
+$('sQ').addEventListener('keydown', e => { if(e.key === 'Enter') apply(); });
+['fReg','fBranch','fDist'].forEach(id => $(id).onchange = cascade);
+$('reset').onclick = () => { Object.values(F).forEach(id => $(id).value = ''); $('sQ').value = ''; $('sCol').value = '*'; cascade(); apply(); };
+$('csv').onclick = () => {
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const csv = [COLS.map(c => q(c[1])).join(','), ...VIEW.map(r => COLS.map(c => q(r[c[0]])).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], {type:'text/csv'}));
+  a.download = 'digimon-gis-data.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+
+(async () => {
+  const role = await initPage('table'); if(!role) return;
+  $('ttl').textContent = 'Data Order Polygon'; $('sub').textContent = 'Pencarian dan filter data';
+  const {data, error} = await sb.rpc('list_areas');
+  if(error) return toast(error.message);
+  ALL = data.map(r => ({...r, year: r.created_at ? new Date(r.created_at).getFullYear() : ''}));
+  $('sCol').innerHTML = '<option value="*">Semua Kolom</option>' + COLS.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
+  fillSel('fTipe', distinct('tipe_design', ALL), 'Semua Tipe');
+  fillSel('fStatus', ['submitted','revision','designed','completed'], 'Semua Status', v => SL[v]);
+  fillSel('fProyek', distinct('project_name', ALL), 'Semua Proyek');
+  fillSel('fTahun', distinct('year', ALL).reverse(), 'Semua Tahun');
+  cascade(); apply();
+})();
+</script>
+</body>
+</html>
