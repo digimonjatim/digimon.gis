@@ -6,7 +6,7 @@
 <title>View Design - DIGIMON GIS</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="common.css?v=7">
 <style>
 body{display:flex;flex-direction:column}
 .wrap{flex:1;display:grid;grid-template-columns:1fr 380px;min-height:0}
@@ -23,7 +23,7 @@ aside{overflow:auto;background:#f7f9f8;border-left:1px solid var(--line);padding
 .card h3{margin:0 0 8px;font-size:13px;color:var(--acc)}
 .card small{color:var(--mute);display:block;font-size:11px}
 .big{font-size:18px;font-weight:600;word-break:break-word}
-.steps{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.stl{display:grid;grid-template-columns:repeat(3,auto);gap:8px;margin-top:6px;justify-content:start}.stl small{margin-bottom:3px}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
 .kv .full{grid-column:1/-1}
 .kv div>div{word-break:break-word}
@@ -49,11 +49,11 @@ details summary{cursor:pointer;font-weight:600;font-size:13px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
-<script src="common.js"></script>
+<script src="common.js?v=7"></script>
 <script>
 const areaId = new URLSearchParams(location.search).get('id');
 const COL = {customer:'#4b8f6b', odp:'#e8731a', prospect:'#2563eb'};
-const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Calon Pelanggan'};
+const LABEL = {customer:'Pelanggan', odp:'ODP Plan', prospect:'Demand'};
 const KS = {Point:{n:'Titik',c:'#7c3aed'}, LineString:{n:'Garis',c:'#e11d48'}, Polygon:{n:'Polygon',c:'#0891b2'}};
 const NOFN = 'PGRST202';   // kode error PostgREST: fungsi tidak ditemukan
 let compat = false;
@@ -95,7 +95,7 @@ async function picker(){
   if(g.error){ $('side').innerHTML = `<div class="card">${esc(g.error.message)}</div>`; return toast(g.error.message); }
   const feats = g.data.features, go = id => location.href = 'design.html?id=' + id;
   const layer = L.geoJSON(feats, {
-    style:f => ({color:SC[f.properties.status], weight:2, fillOpacity:.15}),
+    style:f => ({color:areaColor(f.properties), weight:2, fillOpacity:.15}),
     onEachFeature:(f, l) => { l.bindTooltip(f.properties.code || ''); l.on('click', () => go(f.properties.id)); }
   }).addTo(map);
   if(feats.length) map.fitBounds(layer.getBounds(), {padding:[30,30]});
@@ -106,7 +106,7 @@ async function picker(){
     const q = $('pq').value.trim().toLowerCase();
     const rows = feats.map(f => f.properties).filter(p => !q || [p.code, p.name, p.sto_code, p.nama_proyek, p.tipe_design].join(' ').toLowerCase().includes(q))
       .sort((a, b) => String(b.created_at || b.code).localeCompare(String(a.created_at || a.code))).slice(0, 100);
-    $('plist').innerHTML = rows.map(p => `<div class="li" data-id="${esc(p.id)}">${badge(p.status)} <b>${esc(p.code)}</b> ${esc(p.name)}<br><span class="mute">${esc(p.sto_code || '-')} · ${esc(p.nama_proyek || 'belum didesain')}</span></div>`).join('')
+    $('plist').innerHTML = rows.map(p => `<div class="li" data-id="${esc(p.id)}">${badges(p)}<br><b>${esc(p.code)}</b> ${esc(p.name)}<br><span class="mute">${esc(p.sto_code || '-')} · ${esc(p.nama_proyek || 'belum didesain')}</span></div>`).join('')
       || '<span class="mute">Tidak ada polygon.</span>';
     $('plist').querySelectorAll('.li').forEach(el => el.onclick = () => go(el.dataset.id));
   };
@@ -131,7 +131,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
 
   // ---- Peta ----
   const map = makeMap();
-  const polyL = L.geoJSON(f, {style:{color:SC[p.status], weight:3, fillColor:'#f5e61a', fillOpacity:.25}}).addTo(map);
+  const polyL = L.geoJSON(f, {style:{color:areaColor(p), weight:3, fillColor:'#f5e61a', fillOpacity:.25}}).addTo(map);
   const bounds = polyL.getBounds(); map.fitBounds(bounds, {padding:[30,30]});
 
   const groups = {customer:L.layerGroup(), odp:L.layerGroup(), prospect:L.layerGroup()}, cnt = {customer:0, odp:0, prospect:0};
@@ -177,12 +177,11 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     (p.kml_path ? Object.keys(kml).map(t => leg(kml[t], KS[t].c, KS[t].n, kc[t])).join('') : '<span class="mute">Belum ada KML</span>');
 
   // ---- Panel detail ----
-  const canUp = (role === 'designer' || role === 'admin') && ['submitted','revision','designed'].includes(p.status);
-  const steps = ['submitted','revision','designed','completed'].map(x => `<span class="st" style="background:${x===p.status?SC[x]:'#cdd6d3'}">${SL[x]}</span>`).join('');
+  const canUp = (role === 'designer' || role === 'admin') && canUpload(p);
   $('side').innerHTML = `
     <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div></div>
-    <div class="card" style="border-left:6px solid ${SC[p.status]}"><small>Status Order</small>
-      <div class="big" style="color:${SC[p.status]}">${SL[p.status]}</div><div class="steps">${steps}</div></div>
+    <div class="card"><small>Status Order</small><div class="stl">
+      <div><small>Polygon</small>${bPoly(p.polygon_status)}</div><div><small>Design</small>${bDesign(p.design_status)}</div><div><small>DSI</small>${bDsi(p.dsi_status)}</div></div></div>
     ${canUp ? `<div class="card" id="upCard"><h3>${p.kml_path ? 'Upload ulang desain' : 'Upload desain'}</h3><div class="kv">
       <div><small>ID IHLD (opsional)</small><input id="uIhld" maxlength="60" value="${esc(p.ihld_id || '')}"></div>
       <div><small>Nama Proyek *</small><input id="uProyek" maxlength="120" value="${esc(p.nama_proyek || '')}"></div>
@@ -192,7 +191,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
       <div class="btns"><button id="uGo" type="button" class="pri">Upload</button></div></div>` : ''}
     <div class="card"><h3>Informasi Desain</h3><div class="kv">
       ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Desain', p.tipe_design)}${kv('ID IHLD', p.ihld_id)}
-      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Calon Pelanggan', p.prospect)}${kv('DSI ID', p.dsi_id)}
+      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Demand', p.prospect)}${kv('DSI ID', p.dsi_id)}
       ${kv('DSI Name', p.dsi_name, 1)}${kv('Disubmit', fmt(p.created_at))}${kv('Didesain', fmt(p.designed_at))}
       ${p.completed_at ? kv('Completed', fmt(p.completed_at), 1) : ''}</div>
       <div class="btns">
@@ -227,7 +226,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
         r = await st.upload(bp, b); if(r.error) throw new Error(r.error.message);
         const {error} = await sb.rpc('mark_designed', {p_area:areaId, p_kml:kp, p_boq:bp, p_ihld:ihld || null, p_proyek:proyek, p_tipe:tipe});
         if(error) throw new Error(error.message);
-        sessionStorage.setItem('flash', 'Desain terupload. Status: Designed'); location.reload();
+        sessionStorage.setItem('flash', 'Desain terupload. Status: Design Complete'); location.reload();
       }catch(err){ toast(err.message); $('uGo').disabled = false; }
     };
   }
@@ -255,7 +254,13 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
         rows.map(r => '<tr>' + r.slice(0, 15).map(c => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') + '</table>';
     }catch(err){ $('boqT').textContent = 'Gagal membaca BoQ: ' + err.message; }
   });
-})();
+})().catch(err => {            // jangan biarkan halaman kosong tanpa pesan
+  console.error(err);
+  const hint = err instanceof ReferenceError ? '<br><small class="mute">Biasanya common.js belum versi terbaru. Unggah common.js terbaru lalu tekan Ctrl+F5.</small>' : '';
+  $('side').innerHTML = `<div class="card"><b>Terjadi error</b><br>${esc(err.message)}${hint}</div>`;
+  if($('leg')) $('leg').style.display = 'none';
+  toast(err.message);
+});
 </script>
 </body>
 </html>
