@@ -12,13 +12,26 @@ body{display:flex;flex-direction:column}
 .wrap{flex:1;display:grid;grid-template-columns:1fr 380px;min-height:0}
 #mapbox{position:relative;min-height:0}
 #map{height:100%}
-.leg{position:absolute;left:10px;top:84px;z-index:1000;background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-size:12px;width:210px}
+.leg{position:absolute;left:10px;top:124px;z-index:1000;background:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-size:12px;width:210px}
 .leg h4{margin:0 0 4px;font-size:12px}
 .leg h4:not(:first-child){margin-top:8px;padding-top:6px;border-top:1px solid #e3e9e6}
 .leg label{display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer}
 .leg .n{margin-left:auto;color:var(--mute)}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
-aside{overflow:auto;background:#f7f9f8;border-left:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:10px}
+.sidewrap{display:flex;flex-direction:column;min-height:0;background:#f7f9f8;border-left:1px solid var(--line)}
+#side{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+#foot{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid var(--line)}
+#foot button{padding:9px 10px}
+#upCard details{border-top:1px solid #eef2f0;padding-top:8px;margin-top:8px}
+#fm{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:15000;padding:16px}
+.fb{background:#fff;border-radius:12px;width:min(460px,100%);max-height:92vh;overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.fb h3{margin:0 0 2px;font-size:16px}
+.fsub{color:var(--mute);font-size:12px;margin-bottom:12px}
+.fbody{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fbody .full{grid-column:1/-1}
+.fbody label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
+.fbody input,.fbody select{width:100%}
+.fact{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}
 .card h3{margin:0 0 8px;font-size:13px;color:var(--acc)}
 .card small{color:var(--mute);display:block;font-size:11px}
@@ -35,14 +48,21 @@ details summary{cursor:pointer;font-weight:600;font-size:13px}
 .tw{overflow:auto;max-height:320px;margin-top:8px}
 .tw table{border-collapse:collapse;font-size:11px}
 .tw td{border:1px solid #e3e9e6;padding:3px 6px;white-space:nowrap}
-@media(max-width:900px){body{height:auto}.wrap{grid-template-columns:1fr;grid-template-rows:55vh auto}}
+@media(max-width:900px){body{height:auto}.wrap{grid-template-columns:1fr;grid-template-rows:55vh auto}#foot{position:sticky;bottom:0}}
 </style>
 </head>
 <body>
 <div id="hdr"></div>
 <div class="wrap">
   <div id="mapbox"><div id="map"></div><div class="leg" id="leg"></div></div>
-  <aside id="side"></aside>
+  <aside class="sidewrap"><div id="side"></div><div id="foot"></div></aside>
+</div>
+<div id="fm" role="dialog" aria-modal="true" aria-labelledby="fmT">
+  <div class="fb">
+    <h3 id="fmT"></h3><div class="fsub" id="fmS"></div>
+    <div class="fbody" id="fmB"></div>
+    <div class="fact"><button id="fmC" type="button">Batal</button><button id="fmOk" type="button" class="pri">Simpan</button></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -80,6 +100,18 @@ async function loadPoints(f, id){
   if(g.error) throw new Error(g.error.message);
   return {type:'FeatureCollection', features:g.data.features.filter(ft => inRing(ft.geometry.coordinates[0], ft.geometry.coordinates[1], ring))};
 }
+const TIPE = ['PT1','PT2','PT3','PT4'], TOPO = ['Normal','ODC Less','Mitratel'];
+// Modal HTML untuk form (Upload Desain, Submit DSI)
+let fmSave = null;
+function openForm(title, sub, body, okLabel, onSave){
+  $('fmT').textContent = title; $('fmS').textContent = sub; $('fmB').innerHTML = body; $('fmOk').textContent = okLabel;
+  fmSave = onSave; $('fm').style.display = 'flex';
+  const f = $('fmB').querySelector('input,select'); if(f) f.focus();
+}
+function closeForm(){ $('fm').style.display = 'none'; fmSave = null; }
+$('fmC').onclick = closeForm;
+$('fmOk').onclick = async () => { if(!fmSave) return; $('fmOk').disabled = true; try{ await fmSave(); } finally{ $('fmOk').disabled = false; } };
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && fmSave) closeForm(); });
 function makeMap(){
   const map = L.map('map', {preferCanvas:true}).setView([-2.5, 118], 5);
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
@@ -107,6 +139,15 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   const map = makeMap();
   const polyL = L.geoJSON(f, {style:{color:areaColor(p), weight:3, fillColor:'#f5e61a', fillOpacity:.25}}).addTo(map);
   const bounds = polyL.getBounds(); map.fitBounds(bounds, {padding:[30,30]});
+  const zc = L.control({position:'topleft'});
+  zc.onAdd = () => {
+    const d = L.DomUtil.create('div', 'leaflet-bar'), a = L.DomUtil.create('a', '', d);
+    a.href = '#'; a.title = 'Zoom ke polygon'; a.setAttribute('role', 'button'); a.setAttribute('aria-label', 'Zoom ke polygon');
+    a.innerHTML = '&#8982;'; a.style.cssText = 'font-size:18px;line-height:30px;text-align:center;cursor:pointer';
+    L.DomEvent.on(a, 'click', e => { L.DomEvent.stop(e); map.fitBounds(polyL.getBounds(), {padding:[30,30]}); });
+    return d;
+  };
+  zc.addTo(map);
 
   const groups = {customer:L.layerGroup(), odp:L.layerGroup(), prospect:L.layerGroup()}, cnt = {customer:0, odp:0, prospect:0};
   (ptsData.features || []).forEach(ft => {
@@ -150,68 +191,110 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     '<h4>Objek desain (KML)</h4>' +
     (p.kml_path ? Object.keys(kml).map(t => leg(kml[t], KS[t].c, KS[t].n, kc[t])).join('') : '<span class="mute">Belum ada KML</span>');
 
-  // ---- Panel detail ----
-  const canUp = (role === 'designer' || role === 'admin') && canUpload(p);
+  // ---- Panel detail: Status Order, Polygon ID, Informasi Desain, Wilayah Telkom, Upload Desain ----
+  const isDes = role === 'designer' || role === 'admin', isPlan = role === 'planner' || role === 'admin';
+  const fileName = path => path ? path.split('/').pop().replace(/^\d+_/, '') : '';
   $('side').innerHTML = `
     <h2 class="ptl">View Design</h2>
+    <div class="card"><small>Status Order</small><div id="stat" style="margin-top:6px"></div></div>
     <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div></div>
-    <div class="card"><small>Status Order</small><div style="margin-top:6px">${badge(p.status)}</div></div>
-    ${canUp ? `<div class="card" id="upCard"><h3>${p.kml_path ? 'Upload ulang desain' : 'Upload desain'}</h3>${canStartDesign(p) ? '<div class="btns" style="margin:0 0 8px"><button id="uStart" type="button">Mulai Desain</button></div>' : ''}<div class="kv">
-      <div><small>ID IHLD (opsional)</small><input id="uIhld" maxlength="60" value="${esc(p.ihld_id || '')}"></div>
-      <div><small>Nama Proyek *</small><input id="uProyek" maxlength="120" value="${esc(p.nama_proyek || '')}"></div>
-      <div class="full"><small>Tipe Design *</small><input id="uTipe" list="tipeList" maxlength="60" autocomplete="off" value="${esc(p.tipe_design || '')}"><datalist id="tipeList"></datalist></div>
-      <div class="full"><small>Upload KML (.kml) *</small><input id="uKml" type="file" accept=".kml"></div>
-      <div class="full"><small>Upload BoQ (.xlsx) *</small><input id="uBoq" type="file" accept=".xlsx"></div></div>
-      <div class="btns"><button id="uGo" type="button" class="pri">Upload</button></div></div>` : ''}
     <div class="card"><h3>Informasi Desain</h3><div class="kv">
-      ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Desain', p.tipe_design)}${kv('ID IHLD', p.ihld_id)}
-      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Demand', p.prospect)}${kv('DSI ID', p.dsi_id)}
+      ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Design', p.tipe_design)}${kv('Topology', p.topology)}${kv('ID IHLD', p.ihld_id)}
+      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Total Demand', p.prospect)}${kv('DSI ID', p.dsi_id)}
       ${kv('DSI Name', p.dsi_name, 1)}${kv('Disubmit', fmt(p.created_at))}${kv('Didesain', fmt(p.designed_at))}
-      ${p.completed_at ? kv('Completed', fmt(p.completed_at), 1) : ''}</div>
-      <div class="btns">
-        ${p.kml_path ? '<button id="dlK" type="button">Unduh KML</button>' : ''}
-        ${p.boq_path ? '<button id="dlB" type="button">Unduh BoQ</button>' : ''}
-        <button id="zoomP" type="button">Zoom ke polygon</button><a class="btn" href="table.html">Ke Data Tabel</a></div></div>
+      ${p.completed_at ? kv('DSI Complete', fmt(p.completed_at), 1) : ''}</div></div>
     <div class="card"><h3>Wilayah Telkom</h3><div class="kv">
       ${kv('STO', p.sto_code)}${kv('Nama STO', s.nama_sto)}${kv('Area', s.area)}${kv('Regional', s.regional)}${kv('Branch', s.branch)}
       ${kv('Cluster', s.cluster)}${kv('WOK', s.wok)}${kv('District', s.district)}${kv('Sub District', s.sub_district)}${kv('Kabupaten/Kota', s.kabupaten_kota, 1)}</div></div>
-    <details class="card" id="kmlD"><summary>Objek KML (${items.length})</summary>
-      <div id="kmlList">${kmlMsg ? `<span class="mute">${esc(kmlMsg)}</span>` : items.slice(0, 300).map((it, i) => `<div class="li" data-i="${i}">${esc(it.name)} <span class="mute">· ${KS[it.t].n}</span></div>`).join('')}
-        ${items.length > 300 ? '<div class="mute">Menampilkan 300 objek pertama.</div>' : ''}</div></details>
-    <details class="card" id="boqD"><summary>Preview BoQ</summary><div id="boqT" class="tw"></div></details>`;
+    <div class="card" id="upCard"><h3>Upload Desain</h3>
+      ${p.kml_path || p.boq_path
+        ? `<div class="kv">${kv('File KML', fileName(p.kml_path))}${kv('File BoQ', fileName(p.boq_path))}${kv('Diupload', fmt(p.designed_at), 1)}</div>`
+        : '<span class="mute">Belum ada desain. Tekan Start Design untuk mengupload.</span>'}
+      <details id="kmlD"><summary>Objek KML (${items.length})</summary>
+        <div id="kmlList">${kmlMsg ? `<span class="mute">${esc(kmlMsg)}</span>` : items.slice(0, 300).map((it, i) => `<div class="li" data-i="${i}">${esc(it.name)} <span class="mute">· ${KS[it.t].n}</span></div>`).join('')}
+          ${items.length > 300 ? '<div class="mute">Menampilkan 300 objek pertama.</div>' : ''}</div></details>
+      <details id="boqD"><summary>Preview BoQ</summary><div id="boqT" class="tw"></div></details></div>`;
 
-  if(canUp){
-    if($('uStart')) $('uStart').onclick = async () => {
+  // ---- Status + tombol bawah ----
+  function renderStatus(){ $('stat').innerHTML = badge(p.status); polyL.setStyle({color:areaColor(p)}); }
+  function renderFoot(){
+    const noK = !p.kml_path, noB = !p.boq_path;
+    const startWhy = !isDes ? 'Hanya designer' : !canUpload(p) ? 'DSI Complete, polygon terkunci' : '';
+    const dsiWhy = !isPlan ? 'Hanya planner' : p.status === 'dsi_complete' ? 'DSI sudah Complete' : !canDsi(p) ? 'Menunggu Design Complete' : '';
+    $('foot').innerHTML = `
+      <button id="bDlK" type="button" ${noK ? 'disabled title="Belum ada KML"' : ''}>Download KML</button>
+      <button id="bDlB" type="button" ${noB ? 'disabled title="Belum ada BoQ"' : ''}>Download BoQ</button>
+      <button id="bStart" type="button" class="pri" ${startWhy ? `disabled title="${startWhy}"` : ''}>Start Design</button>
+      <button id="bDsi" type="button" class="pri" ${dsiWhy ? `disabled title="${dsiWhy}"` : ''}>Drawing DSI</button>`;
+    $('bDlK').onclick = () => dlFile(p.kml_path);
+    $('bDlB').onclick = () => dlFile(p.boq_path);
+    $('bStart').onclick = startDesign;
+    $('bDsi').onclick = drawingDsi;
+  }
+  const refresh = () => { renderStatus(); renderFoot(); };
+  refresh();
+
+  // Start Design: status -> Ongoing Design (bila masih Submitted/Revision), lalu form upload tampil
+  async function startDesign(){
+    if(canStartDesign(p)){
       const {error} = await sb.rpc('start_design', {p_area:areaId});
       if(error) return toast(error.message, 'error');
-      sessionStorage.setItem('flash', 'Status: Ongoing Design'); location.reload();
-    };
-    sb.from('project_areas').select('tipe_design').not('tipe_design', 'is', null).limit(1000).then(({data}) => {
-      $('tipeList').innerHTML = [...new Set((data || []).map(x => x.tipe_design))].map(t => `<option value="${esc(t)}">`).join('');
-    });
-    $('uGo').onclick = async () => {
-      const ihld = $('uIhld').value.trim(), proyek = $('uProyek').value.trim(), tipe = $('uTipe').value.trim();
-      const k = $('uKml').files[0], b = $('uBoq').files[0];
-      if(!proyek) return toast('Nama Proyek wajib diisi');
-      if(!tipe) return toast('Tipe Design wajib diisi');
-      if(!k || !b) return toast('Pilih file KML dan BoQ');
-      if(!/\.kml$/i.test(k.name) || !/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
-      $('uGo').disabled = true;
-      try{
-        parseKml(await k.text());                         // validasi KML sebelum upload
-        const t = Date.now(), safe = n => n.replace(/[^A-Za-z0-9._-]/g, '_');
-        const kp = `${areaId}/${t}_${safe(k.name)}`, bp = `${areaId}/${t}_${safe(b.name)}`, st = sb.storage.from('designs');
-        let r = await st.upload(kp, k, {contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) throw new Error(r.error.message);
-        r = await st.upload(bp, b); if(r.error) throw new Error(r.error.message);
-        const {error} = await sb.rpc('mark_designed', {p_area:areaId, p_kml:kp, p_boq:bp, p_ihld:ihld || null, p_proyek:proyek, p_tipe:tipe});
-        if(error) throw new Error(error.message);
-        sessionStorage.setItem('flash', 'Desain terupload. Status: Design Complete'); location.reload();
-      }catch(err){ toast(err.message); $('uGo').disabled = false; }
-    };
+      p.status = 'ongoing_design'; refresh();
+    }
+    openUploadForm();
   }
-  if($('dlK')) $('dlK').onclick = () => dlFile(p.kml_path);
-  if($('dlB')) $('dlB').onclick = () => dlFile(p.boq_path);
-  $('zoomP').onclick = () => map.fitBounds(polyL.getBounds(), {padding:[30,30]});
+  // Drawing DSI: status -> Ongoing DSI (bila masih Design Complete), lalu form submit DSI tampil
+  async function drawingDsi(){
+    if(p.status === 'design_complete'){
+      const {error} = await sb.rpc('start_dsi', {p_area:areaId});
+      if(error) return toast(error.message, 'error');
+      p.status = 'ongoing_dsi'; refresh();
+    }
+    openDsiForm();
+  }
+
+  function openUploadForm(){
+    const opt = (arr, cur, ph) => `<option value="">${ph}</option>` + arr.map(v => `<option${v === cur ? ' selected' : ''}>${v}</option>`).join('');
+    openForm('Form Upload Desain', 'Isian bertanda * wajib. Setelah berhasil, status menjadi Design Complete.',
+      `<div><label for="uIhld">ID IHLD (opsional)</label><input id="uIhld" maxlength="60" value="${esc(p.ihld_id || '')}"></div>
+       <div><label for="uProyek">Nama Proyek *</label><input id="uProyek" maxlength="120" value="${esc(p.nama_proyek || '')}"></div>
+       <div><label for="uTipe">Tipe Design *</label><select id="uTipe">${opt(TIPE, p.tipe_design, 'Pilih tipe')}</select></div>
+       <div><label for="uTopo">Topology *</label><select id="uTopo">${opt(TOPO, p.topology, 'Pilih topology')}</select></div>
+       <div class="full"><label for="uKml">Upload KML (.kml) *</label><input id="uKml" type="file" accept=".kml"></div>
+       <div class="full"><label for="uBoq">Upload BoQ (.xlsx) *</label><input id="uBoq" type="file" accept=".xlsx"></div>`,
+      'Upload', async () => {
+        const ihld = $('uIhld').value.trim(), proyek = $('uProyek').value.trim(), tipe = $('uTipe').value, topo = $('uTopo').value;
+        const k = $('uKml').files[0], b = $('uBoq').files[0];
+        if(!proyek) return toast('Nama Proyek wajib diisi');
+        if(!tipe) return toast('Tipe Design wajib dipilih');
+        if(!topo) return toast('Topology wajib dipilih');
+        if(!k || !b) return toast('Pilih file KML dan BoQ');
+        if(!/\.kml$/i.test(k.name) || !/\.xlsx$/i.test(b.name)) return toast('Format harus .kml dan .xlsx');
+        try{
+          parseKml(await k.text());                         // validasi KML sebelum upload
+          const t = Date.now(), safe = n => n.replace(/[^A-Za-z0-9._-]/g, '_');
+          const kp = `${areaId}/${t}_${safe(k.name)}`, bp = `${areaId}/${t}_${safe(b.name)}`, st = sb.storage.from('designs');
+          let r = await st.upload(kp, k, {contentType:'application/vnd.google-earth.kml+xml'}); if(r.error) throw new Error(r.error.message);
+          r = await st.upload(bp, b); if(r.error) throw new Error(r.error.message);
+          const {error} = await sb.rpc('mark_designed', {p_area:areaId, p_kml:kp, p_boq:bp, p_ihld:ihld || null, p_proyek:proyek, p_tipe:tipe, p_topology:topo});
+          if(error) throw new Error(error.message);
+          sessionStorage.setItem('flash', 'Desain terupload. Status: Design Complete'); location.reload();
+        }catch(err){ toast(err.message, 'error'); }
+      });
+  }
+  function openDsiForm(){
+    openForm('Form Submit DSI', 'Setelah submit, status menjadi DSI Complete dan polygon terkunci.',
+      `<div><label for="dId">DSI ID *</label><input id="dId" maxlength="40" value="${esc(p.dsi_id || '')}"></div>
+       <div><label for="dNm">DSI Name *</label><input id="dNm" maxlength="120" value="${esc(p.dsi_name || '')}"></div>`,
+      'Submit', async () => {
+        const id = $('dId').value.trim(), nm = $('dNm').value.trim();
+        if(!id || !nm) return toast('DSI ID dan DSI Name wajib diisi');
+        const {error} = await sb.rpc('complete_area', {p_area:areaId, p_dsi_id:id, p_dsi_name:nm});
+        if(error) return toast(error.message, 'error');
+        sessionStorage.setItem('flash', 'Status: DSI Complete'); location.reload();
+      });
+  }
+
   $('kmlList').querySelectorAll('.li').forEach(el => el.onclick = () => {
     const l = items[+el.dataset.i].l;
     l.getBounds ? map.fitBounds(l.getBounds(), {maxZoom:19, padding:[40,40]}) : map.setView(l.getLatLng(), 19);
