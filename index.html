@@ -569,9 +569,9 @@ const badges = p => badge(p.status);
 const areaColor = p => SC[p.status] || '#0e7c7b';
 const locked = p => p.status === 'dsi_complete';                                   // DSI Complete = terkunci
 const canUpload = p => p.status !== 'dsi_complete';                                // designer boleh upload / upload ulang
-const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Mulai Desain"
-const canStartDsi = p => p.status === 'design_complete';                           // tombol "Mulai DSI"
-const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // tombol "Input DSI"
+const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Start Design"
+const canStartDsi = p => p.status === 'design_complete';                           // tombol "Drawing DSI"
+const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // form Submit DSI
 const isPlan=()=>ROLE==='planner'||ROLE==='admin', isDes=()=>ROLE==='designer'||ROLE==='admin';
 function applyRole(){
   $('who').textContent=ROLE?('Peran: '+({planner:'Planner (User A)',designer:'Designer (User B)',admin:'Admin'}[ROLE])):'Peran belum diatur';
@@ -592,7 +592,7 @@ function openView(id,ll){
     +`<div class="sec">Wilayah STO</div>`+vr('STO',p.sto_code)+vr('Nama STO',s.nama_sto)+vr('Area',s.area)+vr('Regional',s.regional)+vr('Branch',s.branch)
     +vr('Cluster',s.cluster)+vr('WOK',s.wok)+vr('District',s.district)+vr('Sub District',s.sub_district)+vr('Kabupaten/Kota',s.kabupaten_kota);
   if(p.nama_proyek||p.kml_path){
-    h+=`<div class="sec">Desain</div>`+vr('ID IHLD',p.ihld_id)+vr('Nama Proyek',p.nama_proyek)+vr('Tipe Design',p.tipe_design)
+    h+=`<div class="sec">Desain</div>`+vr('ID IHLD',p.ihld_id)+vr('Nama Proyek',p.nama_proyek)+vr('Tipe Design',p.tipe_design)+vr('Topology',p.topology)
       +vr('Tanggal Desain',p.designed_at?new Date(p.designed_at).toLocaleString('id-ID'):'');
     if(p.kml_path) h+=`<div><label>File</label><div class="val"><a href="#" onclick="dl('${esc(p.kml_path)}');return false">KML</a> · <a href="#" onclick="dl('${esc(p.boq_path)}');return false">BoQ</a></div></div>`;
   }
@@ -602,8 +602,6 @@ function openView(id,ll){
   if(canEdit) a.push(`<button type="button" class="dng" onclick="deleteArea('${id}')">Hapus</button>`);
   a.push('<span class="sp"></span>');
   if(p.kml_path) a.push(`<button type="button" onclick="toggleKml('${id}')">${kmlLayers[id]?'Sembunyikan desain':'Lihat desain di peta'}</button>`);
-  if(isPlan()&&canStartDsi(p)) a.push(`<button type="button" onclick="startDsi('${id}')">Mulai DSI</button>`);
-  if(isPlan()&&canDsi(p)) a.push(`<button type="button" onclick="closeView();inputDsi('${id}')">Input DSI</button>`);
   a.push(`<button type="button" onclick="location.href='design.html?id=${id}'">Lihat Design</button>`);
   a.push('<button type="button" onclick="closeView()">Tutup</button>');
   if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
@@ -618,12 +616,6 @@ function startEdit(id){
   if(session&&session!==id) return toast('Selesaikan atau batalkan edit polygon yang sedang berjalan dulu');
   closeView(); stopDraw(); mode=null;
   session===id?resumeEdit():beginSession(id);
-}
-async function startDsi(id){
-  closeView();
-  const {error}=await sb.rpc('start_dsi',{p_area:id});
-  if(error) return toast(error.message,'error');
-  toast('Status: Ongoing DSI'); loadAreas();
 }
 async function deleteArea(id){
   const p=areaFeatures.find(x=>x.properties.id===id)?.properties;
@@ -696,19 +688,6 @@ function syncKml(){ // segarkan desain yang sedang tampil bila file diganti / po
   }
 }
 
-function inputDsi(id){
-  map.closePopup();
-  openDialog('Input DSI','Setelah disimpan, status menjadi DSI Complete dan polygon terkunci.',
-    `<div><label for="dId">DSI ID</label><input id="dId" maxlength="40"></div>
-     <div><label for="dNm">DSI Name</label><input id="dNm" maxlength="120"></div>`,
-    async()=>{
-      const a=$('dId').value.trim(), n=$('dNm').value.trim();
-      if(!a||!n) return toast('DSI ID dan DSI Name wajib diisi');
-      const {error}=await sb.rpc('complete_area',{p_area:id,p_dsi_id:a,p_dsi_name:n});
-      if(error) return toast(error.message);
-      closeDialog(); toast('Status: DSI Complete'); loadAreas();
-    });
-}
 // ---- Form order (modal) ----
 let STO=[], order=null;
 async function loadSto(){
