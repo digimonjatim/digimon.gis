@@ -91,7 +91,7 @@ let ALL = [], VIEW = [], sortKey = 'created_at', sortDir = -1, page = 1;
 const COLS = [
   ['status','Status Order', r => badge(r.status)],
   ['code','Polygon ID'], ['name','Nama Polygon'], ['nama_proyek','Nama Proyek'],
-  ['tipe_design','Tipe Desain'], ['ihld_id','ID IHLD'], ['sto_code','STO'],
+  ['tipe_design','Tipe Desain'], ['topology','Topology'], ['ihld_id','ID IHLD'], ['sto_code','STO'],
   ['branch','Branch'], ['district','District'], ['kabupaten_kota','Kab/Kota'],
   ['customer','Pelanggan'], ['odp','ODP'], ['dsi_id','DSI ID'],
   ['created_at','Disubmit', r => `${esc(fmt(r.created_at))}<br><small class="mute">${esc(ago(r.created_at))}</small>`]
