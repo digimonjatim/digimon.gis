@@ -10,9 +10,9 @@ const badges = p => badge(p.status);
 const areaColor = p => SC[p.status] || '#0e7c7b';
 const locked = p => p.status === 'dsi_complete';                                   // DSI Complete = terkunci
 const canUpload = p => p.status !== 'dsi_complete';                                // designer boleh upload / upload ulang
-const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Mulai Desain"
-const canStartDsi = p => p.status === 'design_complete';                           // tombol "Mulai DSI"
-const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // tombol "Input DSI"
+const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Start Design"
+const canStartDsi = p => p.status === 'design_complete';                           // tombol "Drawing DSI"
+const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // form Submit DSI
 const fmt = t => t ? new Date(t).toLocaleString('id-ID') : '';
 function ago(t){
   if(!t) return '';
