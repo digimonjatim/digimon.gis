@@ -85,6 +85,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .gpop .act button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
 .gpop .act button.dng{color:#a02020;border-color:#e0b8b8}
 .gpop .act .sp{flex:1}
+.gpop #vActs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.gpop #vActs button{width:100%;min-width:0;padding:7px 10px}
 .gpop .val{padding:3px 0;border-bottom:1px solid #e3e9e6;min-height:22px;word-break:break-word}
 .gpop .nil{color:#9aaaa7}
 .gpop .sec{grid-column:1/-1;font-size:11px;font-weight:600;color:#0e7c7b;margin-top:4px}
@@ -112,6 +114,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <label class="lg"><input type="checkbox" data-k="customer" checked style="width:auto"><span class="dot" style="background:var(--cust)"></span>Pelanggan (UN ID)</label>
       <label class="lg"><input type="checkbox" data-k="odp" checked style="width:auto"><span class="dot" style="background:var(--odp)"></span>ODP Plan</label>
       <label class="lg"><input type="checkbox" data-k="prospect" checked style="width:auto"><span class="dot" style="background:var(--pros)"></span>Demand</label>
+      <label class="lg"><input type="checkbox" id="lyKml" style="width:auto"><span class="dot" style="background:#e11d48"></span>Desain (KML)</label>
+      <div id="kmlInfo" style="color:var(--mute);font-size:12px"></div>
       <div id="count" style="color:var(--mute);font-size:12px"></div>
     </section>
     <section>
@@ -561,7 +565,8 @@ map.on(L.Draw.Event.CREATED, async e=>{
 });
 // ---- Peran & status ----
 let ROLE=null, dlgSave=null, areaFeatures=[];
-const kmlGroup=L.featureGroup().addTo(map), kmlLayers={};
+const kmlGroup=L.featureGroup(), kmlLayers={}, kmlFail=new Set();
+let kmlOn=false, kmlBusy=false, kmlT=null;
 const SL = {submitted:'Submitted Polygon', revision:'Revision Polygon', ongoing_design:'Ongoing Design', design_complete:'Design Complete', ongoing_dsi:'Ongoing DSI', dsi_complete:'DSI Complete'};
 const SC = {submitted:'#2563eb', revision:'#d97706', ongoing_design:'#0891b2', design_complete:'#7c3aed', ongoing_dsi:'#db2777', dsi_complete:'#15803d'};
 const badge = st => `<span class="st" style="background:${SC[st]||'#666'}">${SL[st]||esc(st)}</span>`;
@@ -598,14 +603,14 @@ function openView(id,ll){
   }
   if(p.dsi_id) h+=`<div class="sec">DSI</div>`+vr('DSI ID',p.dsi_id)+vr('DSI Name',p.dsi_name);
   $('vBody').innerHTML=h;
-  const a=[], canEdit=isPlan()&&!locked(p);
-  if(canEdit) a.push(`<button type="button" class="dng" onclick="deleteArea('${id}')">Hapus</button>`);
-  a.push('<span class="sp"></span>');
-  if(p.kml_path) a.push(`<button type="button" onclick="toggleKml('${id}')">${kmlLayers[id]?'Sembunyikan desain':'Lihat desain di peta'}</button>`);
-  a.push(`<button type="button" onclick="location.href='design.html?id=${id}'">Lihat Design</button>`);
-  a.push('<button type="button" onclick="closeView()">Tutup</button>');
-  if(canEdit) a.push(`<button type="button" class="pri" onclick="startEdit('${id}')">Edit</button>`);
-  $('vActs').innerHTML=a.join('');
+  const canEdit=isPlan()&&!locked(p);
+  const btn=(label,cls,fn)=>`<button type="button" class="${cls}" onclick="${fn}">${label}</button>`;
+  // Baris 1: Lihat Design | Edit   Baris 2: Hapus | Tutup
+  let acts=btn('Lihat Design','',`location.href='design.html?id=${id}'`);
+  if(canEdit) acts+=btn('Edit','pri',`startEdit('${id}')`);
+  if(canEdit) acts+=btn('Hapus','dng',`deleteArea('${id}')`);
+  acts+=btn('Tutup','','closeView()');
+  $('vActs').innerHTML=acts;
   showPanel('view',anchorLL,()=>{viewId=null});
 }
 const closeView=()=>{if(panel&&panel.name==='view')closePanel()};
@@ -663,30 +668,45 @@ function parseKml(text){
   if(!feats.length) throw new Error('KML tidak berisi objek (Point/LineString/Polygon)');
   return {type:'FeatureCollection',features:feats};
 }
-async function showKml(id,fit=true){
-  const p=areaFeatures.find(f=>f.properties.id===id)?.properties;
-  if(!p||!p.kml_path) return toast('Belum ada file KML');
+// Layer "Desain (KML)": memuat desain polygon yang sedang terlihat di peta
+const KML_MIN_ZOOM=12, KML_BATCH=10;
+const kmlInfo=m=>{$('kmlInfo').textContent=m||''};
+async function loadKmlFor(p){
   const {data,error}=await sb.storage.from('designs').download(p.kml_path);
-  if(error) return toast(error.message);
-  let gj; try{gj=parseKml(await data.text())}catch(err){return toast(err.message)}
-  hideKml(id);
+  if(error) throw new Error(error.message);
+  const gj=parseKml(await data.text());
   const lyr=L.geoJSON(gj,{
     style:f=>f.geometry.type==='Polygon'?{color:'#7c3aed',weight:2,fillOpacity:.1}:{color:'#e11d48',weight:3},
     pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:'#fff',weight:1,fillColor:'#7c3aed',fillOpacity:1}),
     onEachFeature:(f,l)=>l.bindPopup(`<b>${esc(f.properties.name||'(tanpa nama)')}</b><br>Desain ${esc(p.code||'')}${f.properties.desc?'<br>'+esc(f.properties.desc.slice(0,300)):''}`)
-  }).addTo(kmlGroup);
-  kmlLayers[id]={lyr,path:p.kml_path};
-  if(fit) map.fitBounds(lyr.getBounds(),{maxZoom:19});
-  toast(`Desain ${p.code}: ${gj.features.length} objek ditampilkan`);
+  });
+  kmlGroup.addLayer(lyr); kmlLayers[p.id]={lyr,path:p.kml_path};
 }
 function hideKml(id){if(kmlLayers[id]){kmlGroup.removeLayer(kmlLayers[id].lyr);delete kmlLayers[id]}}
-function toggleKml(id){closeView();kmlLayers[id]?hideKml(id):showKml(id)}
-function syncKml(){ // segarkan desain yang sedang tampil bila file diganti / polygon dihapus
-  for(const id of Object.keys(kmlLayers)){
+async function syncKml(){            // dipanggil saat layer dinyalakan, peta bergerak, atau polygon dimuat ulang
+  if(!kmlOn||kmlBusy) return;
+  for(const id of Object.keys(kmlLayers)){                           // buang desain yang sudah diganti / polygon terhapus
     const p=areaFeatures.find(f=>f.properties.id===id)?.properties;
-    if(!p||!p.kml_path) hideKml(id); else if(p.kml_path!==kmlLayers[id].path) showKml(id,false);
+    if(!p||!p.kml_path||p.kml_path!==kmlLayers[id].path) hideKml(id);
   }
+  if(map.getZoom()<KML_MIN_ZOOM){kmlInfo(`Zoom in (min. ${KML_MIN_ZOOM}) untuk memuat desain`);return}
+  const b=map.getBounds();
+  const todo=areaFeatures.map(f=>f.properties)
+    .filter(p=>p.kml_path&&!kmlLayers[p.id]&&!kmlFail.has(p.id+'|'+p.kml_path)&&layerOf(p.id)?.getBounds().intersects(b)).slice(0,KML_BATCH);
+  const n=()=>Object.keys(kmlLayers).length;
+  if(!todo.length){kmlInfo(n()?`${n()} desain ditampilkan`:'Tidak ada desain di layar');return}
+  kmlBusy=true; kmlInfo('Memuat desain...');
+  const errs=[];
+  await Promise.all(todo.map(p=>loadKmlFor(p).catch(e=>{kmlFail.add(p.id+'|'+p.kml_path);errs.push(`${p.code}: ${e.message}`)})));
+  kmlBusy=false; kmlInfo(`${n()} desain ditampilkan`);
+  if(errs.length) toast('Gagal memuat sebagian desain: '+errs.slice(0,3).join('; '),'error');
+  syncKml();                                                          // lanjutkan bila masih ada sisa
 }
+$('lyKml').onchange=e=>{
+  kmlOn=e.target.checked;
+  if(kmlOn){kmlGroup.addTo(map);syncKml()}else{map.removeLayer(kmlGroup);kmlInfo('')}
+};
+map.on('moveend',()=>{clearTimeout(kmlT);kmlT=setTimeout(syncKml,400)});
 
 // ---- Form order (modal) ----
 let STO=[], order=null;
