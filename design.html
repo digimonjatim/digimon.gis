@@ -22,7 +22,12 @@ body{display:flex;flex-direction:column}
 #side{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 #foot{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid var(--line)}
 #foot button{padding:9px 10px}
-#upCard details{border-top:1px solid #eef2f0;padding-top:8px;margin-top:8px}
+.bq{width:100%;border-collapse:collapse;font-size:13px}
+.bq td{padding:6px 0;border-bottom:1px solid #eef2f0}
+.bq td:last-child{text-align:right;font-weight:600}
+.bq tr.gap td{border:0;padding:3px 0}
+.tw th{border:1px solid #e3e9e6;padding:3px 6px;background:#f2f4f1;font-size:11px;text-align:left;white-space:nowrap}
+#boqCard details{border-top:1px solid #eef2f0;padding-top:8px;margin-top:10px}
 #fm{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:15000;padding:16px}
 .fb{background:#fff;border-radius:12px;width:min(460px,100%);max-height:92vh;overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
 .fb h3{margin:0 0 2px;font-size:16px}
@@ -112,6 +117,95 @@ function closeForm(){ $('fm').style.display = 'none'; fmSave = null; }
 $('fmC').onclick = closeForm;
 $('fmOk').onclick = async () => { if(!fmSave) return; $('fmOk').disabled = true; try{ await fmSave(); } finally{ $('fmOk').disabled = false; } };
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && fmSave) closeForm(); });
+// ---- Informasi BoQ: TOTAL ODP / OTB / PORT dari DESIGNATOR, nilai dari kolom G ----
+const DESIG = {   // DESIGNATOR -> [PORT, ODP, OTB]
+  'PS-1-16-ODP':[16,0,0], 'PS-1-16-ODP-S':[16,0,0], 'PS-1-8-ODP':[8,0,0],
+  'M-PS-1-16-ODP':[16,0,0], 'M-PS-1-16-ODP-S':[16,0,0], 'M-PS-1-8-ODP':[8,0,0],
+  'ODP-SOLID-PB-16':[16,1,0], 'ODP-SOLID-PB-16-AS':[16,1,0], 'ODP-SOLID-PB-8':[8,1,0], 'ODP-SOLID-PB-8-AS':[8,1,0],
+  'ODP-SOLID-PB-TANPA-PASSIVE-SPITTER':[0,1,0], 'ODP-SOLID-PB-TANPA-PASSIVE-SPLITTER':[0,1,0],
+  'ODP-SOLID-PL-16':[0,1,0], 'ODP-SOLID-PL-8':[0,1,0],
+  'M-TC-SM-12':[0,0,1], 'TC-SM-12':[0,0,1]
+};
+const VAL_COL = 6;   // kolom G
+const normTxt = v => String(v ?? '').toUpperCase().replace(/\s+/g, ' ').trim();
+const normLabel = v => normTxt(v).replace(/\s*:+\s*$/, '');
+function numVal(v){
+  if(typeof v === 'number') return isFinite(v) ? v : null;
+  let s = String(v ?? '').replace(/rp|idr/ig, '').replace(/\s/g, '');
+  if(!s) return null;
+  if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');   // 1.234.567,89
+  else if(/^-?\d+,\d+$/.test(s)) s = s.replace(',', '.');                                  // 12,5
+  else s = s.replace(/,/g, '');                                                           // 1,234 atau 1234.5
+  const n = Number(s); return isFinite(n) ? n : null;
+}
+const desigKey = c => { const t = normTxt(c); if(DESIG[t]) return t; const u = t.replace(/ /g, '-'); return DESIG[u] ? u : null; };
+// sheets: [{name, rows:[[cell,...],...]}]
+function analyzeBoq(sheets){
+  const scored = sheets.map(sh => ({sh, n:sh.rows.reduce((a, r) => a + (r.some(c => desigKey(c)) ? 1 : 0), 0)}));
+  scored.sort((a, b) => b.n - a.n);                                   // sheet dengan DESIGNATOR terbanyak = sheet utama
+  const main = scored[0].sh, order = [main, ...sheets.filter(s => s !== main)];
+  let qtyCol = null;                                                  // kolom VOLUME dari baris header
+  for(let i = 0; i < Math.min(main.rows.length, 60) && qtyCol === null; i++){
+    const r = main.rows[i].map(normTxt);
+    if(r.some(c => /DESIGNATOR/.test(c))){ const j = r.findIndex(c => /^(VOLUME|VOL\.?|QTY|QUANTITY|JUMLAH)$/.test(c)); if(j >= 0) qtyCol = j; }
+  }
+  const lines = {}; let odp = 0, otb = 0, port = 0, matched = 0;
+  main.rows.forEach((r, ri) => {
+    const ci = r.findIndex(c => desigKey(c)); if(ci < 0) return;
+    const k = desigKey(r[ci]);
+    let q = null;
+    if(qtyCol !== null) q = numVal(r[qtyCol]);
+    else for(let j = ci + 1; j < r.length && q === null; j++) q = numVal(r[j]);   // tanpa header: angka pertama di kanan DESIGNATOR
+    if(q === null) q = 0;
+    const [pp, oo, bb] = DESIG[k];
+    const L = lines[k] || (lines[k] = {k, q:0, port:0, odp:0, otb:0, rows:[]});
+    L.q += q; L.port += q * pp; L.odp += q * oo; L.otb += q * bb; L.rows.push(ri + 1);
+    port += q * pp; odp += q * oo; otb += q * bb; matched++;
+  });
+  // Baris nilai: label MATERIAL / JASA / TOTAL, angkanya di kolom G. Ambil kemunculan terakhir.
+  const RX = {
+    material: /^((NILAI|TOTAL|SUB ?TOTAL|JUMLAH) )*MATERIAL$/,
+    jasa:     /^((NILAI|TOTAL|SUB ?TOTAL|JUMLAH) )*JASA$/,
+    total:    /^((NILAI|GRAND|JUMLAH) )*TOTAL( HARGA| BIAYA)?$/
+  };
+  const vals = {}, src = {};
+  for(const sh of order){
+    sh.rows.forEach((r, ri) => {
+      for(let ci = 0; ci < Math.min(r.length, VAL_COL); ci++){
+        const t = normLabel(r[ci]); if(!t) continue;
+        for(const [name, rx] of Object.entries(RX)){
+          if(!rx.test(t)) continue;
+          const n = numVal(r[VAL_COL]); if(n === null) continue;
+          if(!(name in vals) || src[name].sheet === sh.name){ vals[name] = n; src[name] = {sheet:sh.name, row:ri + 1, label:t}; }
+        }
+      }
+    });
+  }
+  return {sheet:main.name, odp, otb, port, matched, qtyHeader:qtyCol !== null, lines:Object.values(lines),
+          material:vals.material ?? null, jasa:vals.jasa ?? null, total:vals.total ?? null, src};
+}
+const rp = n => (n === null || n === undefined) ? '-' : 'Rp ' + Math.round(n).toLocaleString('id-ID');
+const cnt = n => Number(n).toLocaleString('id-ID');
+function renderBoq(a){
+  const capex = a.port > 0 && a.total !== null ? a.total / a.port : null;
+  const row = (l, v) => `<tr><td>${l}</td><td>${v}</td></tr>`, gap = '<tr class="gap"><td colspan="2"></td></tr>';
+  const srcs = ['material', 'jasa', 'total'].filter(k => a.src[k]).map(k => `${k.toUpperCase()} baris ${a.src[k].row}`).join(', ');
+  const notes = [];
+  if(!a.matched) notes.push('Tidak ada DESIGNATOR yang dikenali di BoQ, jadi total ODP, OTB, dan PORT bernilai 0.');
+  else if(!a.qtyHeader) notes.push('Kolom VOLUME tidak ditemukan di header; qty diambil dari angka pertama di kanan DESIGNATOR.');
+  ['material', 'jasa', 'total'].filter(k => a[k] === null).forEach(k => notes.push(`Baris ${k.toUpperCase()} (kolom G) tidak ditemukan.`));
+  $('boqInfo').className = '';
+  $('boqInfo').innerHTML = `<table class="bq">
+      ${row('TOTAL ODP', cnt(a.odp))}${row('TOTAL OTB', cnt(a.otb))}${row('TOTAL PORT', cnt(a.port))}${gap}
+      ${row('NILAI MATERIAL', rp(a.material))}${row('NILAI JASA', rp(a.jasa))}${row('NILAI TOTAL', rp(a.total))}${gap}
+      ${row('CAPEX PER PORT', rp(capex))}</table>
+    <small class="mute" style="margin-top:6px">CAPEX PER PORT = NILAI TOTAL ÷ TOTAL PORT. Sheet: ${esc(a.sheet)}${srcs ? '. Nilai dari kolom G, ' + esc(srcs) : ''}.</small>
+    ${notes.map(n => `<small style="color:#b45309;margin-top:4px">${esc(n)}</small>`).join('')}
+    <details><summary>Rincian DESIGNATOR (${a.lines.length} jenis)</summary><div class="tw"><table>
+      <tr><th>Designator</th><th>Qty</th><th>Port</th><th>ODP</th><th>OTB</th></tr>
+      ${a.lines.map(l => `<tr><td>${esc(l.k)}</td><td>${cnt(l.q)}</td><td>${cnt(l.port)}</td><td>${cnt(l.odp)}</td><td>${cnt(l.otb)}</td></tr>`).join('') || '<tr><td colspan="5">-</td></tr>'}
+    </table></div></details>`;
+}
 function makeMap(){
   const map = L.map('map', {preferCanvas:true}).setView([-2.5, 118], 5);
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
@@ -177,7 +271,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
       });
       Object.values(kml).forEach(g => { g.addTo(map); g.eachLayer(l => bounds.extend(l.getBounds())); });
       map.fitBounds(bounds, {padding:[30,30]});
-    }catch(err){ kmlMsg = 'Gagal memuat KML: ' + err.message; }
+    }catch(err){ kmlMsg = 'Gagal memuat KML: ' + err.message; toast(kmlMsg, 'error'); }
   }
 
   // ---- Legend (centang untuk tampil/sembunyi) ----
@@ -206,14 +300,8 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     <div class="card"><h3>Wilayah Telkom</h3><div class="kv">
       ${kv('STO', p.sto_code)}${kv('Nama STO', s.nama_sto)}${kv('Area', s.area)}${kv('Regional', s.regional)}${kv('Branch', s.branch)}
       ${kv('Cluster', s.cluster)}${kv('WOK', s.wok)}${kv('District', s.district)}${kv('Sub District', s.sub_district)}${kv('Kabupaten/Kota', s.kabupaten_kota, 1)}</div></div>
-    <div class="card" id="upCard"><h3>Upload Desain</h3>
-      ${p.kml_path || p.boq_path
-        ? `<div class="kv">${kv('File KML', fileName(p.kml_path))}${kv('File BoQ', fileName(p.boq_path))}${kv('Diupload', fmt(p.designed_at), 1)}</div>`
-        : '<span class="mute">Belum ada desain. Tekan Start Design untuk mengupload.</span>'}
-      <details id="kmlD"><summary>Objek KML (${items.length})</summary>
-        <div id="kmlList">${kmlMsg ? `<span class="mute">${esc(kmlMsg)}</span>` : items.slice(0, 300).map((it, i) => `<div class="li" data-i="${i}">${esc(it.name)} <span class="mute">· ${KS[it.t].n}</span></div>`).join('')}
-          ${items.length > 300 ? '<div class="mute">Menampilkan 300 objek pertama.</div>' : ''}</div></details>
-      <details id="boqD"><summary>Preview BoQ</summary><div id="boqT" class="tw"></div></details></div>`;
+    <div class="card" id="boqCard"><h3>Informasi BoQ</h3>
+      <div id="boqInfo" class="mute">${p.boq_path ? 'Memuat BoQ...' : 'Belum ada BoQ. Tekan Start Design untuk mengupload.'}</div></div>`;
 
   // ---- Status + tombol bawah ----
   function renderStatus(){ $('stat').innerHTML = badge(p.status); polyL.setStyle({color:areaColor(p)}); }
@@ -295,27 +383,17 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
       });
   }
 
-  $('kmlList').querySelectorAll('.li').forEach(el => el.onclick = () => {
-    const l = items[+el.dataset.i].l;
-    l.getBounds ? map.fitBounds(l.getBounds(), {maxZoom:19, padding:[40,40]}) : map.setView(l.getLatLng(), 19);
-    l.openPopup();
-  });
-
-  // Preview BoQ (dimuat saat panel dibuka)
-  let boqDone = false;
-  $('boqD').addEventListener('toggle', async () => {
-    if(!$('boqD').open || boqDone) return; boqDone = true;
-    if(!p.boq_path){ $('boqT').innerHTML = '<span class="mute">Belum ada BoQ.</span>'; return; }
-    $('boqT').textContent = 'Memuat...';
+  // Informasi BoQ: unduh file, hitung DESIGNATOR dan baca nilai kolom G
+  (async () => {
+    if(!p.boq_path) return;
     const {data, error} = await sb.storage.from('designs').download(p.boq_path);
-    if(error){ $('boqT').textContent = error.message; return; }
+    if(error){ $('boqInfo').textContent = error.message; return; }
     try{
-      const wb = XLSX.read(await data.arrayBuffer());
-      const name = wb.SheetNames[0], rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:''}).slice(0, 200);
-      $('boqT').innerHTML = `<small>Sheet: ${esc(name)} · ${rows.length} baris pertama</small><table>` +
-        rows.map(r => '<tr>' + r.slice(0, 15).map(c => `<td>${esc(c)}</td>`).join('') + '</tr>').join('') + '</table>';
-    }catch(err){ $('boqT').textContent = 'Gagal membaca BoQ: ' + err.message; }
-  });
+      const wb = XLSX.read(new Uint8Array(await data.arrayBuffer()), {type:'array'});
+      const sheets = wb.SheetNames.map(n => ({name:n, rows:XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, defval:'', raw:true}).slice(0, 5000)}));
+      renderBoq(analyzeBoq(sheets));
+    }catch(err){ $('boqInfo').textContent = 'Gagal membaca BoQ: ' + err.message; }
+  })();
 })().catch(err => {            // jangan biarkan halaman kosong tanpa pesan
   console.error(err);
   const hint = err instanceof ReferenceError ? '<br><small class="mute">Biasanya common.js belum versi terbaru. Unggah common.js terbaru lalu tekan Ctrl+F5.</small>' : '';
