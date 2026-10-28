@@ -45,15 +45,11 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;color:#fff;font-weight:500}
 .pop button.n{color:#0f2a2c;border-color:#c5cfcb;margin-right:4px}
 .pop a{color:#0e7c7b}
-#sbox{position:absolute;left:10px;top:84px;z-index:1000;display:flex;gap:6px;align-items:flex-start}
-#sbox #sBtn{width:34px;height:34px;padding:0;display:grid;place-items:center;background:#fff;color:var(--ink);border:2px solid rgba(0,0,0,.2);border-radius:4px}
-#sbox #sBtn:hover{background:#f2f4f1}
-#sPanel{display:none;background:#fff;color:var(--ink);border-radius:10px;padding:10px 12px;box-shadow:0 4px 18px rgba(0,0,0,.3);width:264px;font-size:12px}
-#sPanel label{display:block;font-size:11px;color:#5b706d;margin:6px 0 2px}#sPanel label:first-child{margin-top:0}
-#sPanel .sr{display:flex;gap:4px}
-#sPanel input{background:#fff;color:var(--ink);border-color:#c5cfcb;padding:5px 7px;font-size:12px;min-width:0}
-#sPanel button{padding:5px 10px;font-size:12px;background:var(--ink);color:#fff;border-color:var(--ink);flex:none}
-#sRes .li{padding:5px 0;border-bottom:1px solid #eef2f0;cursor:pointer}#sRes .li:hover{color:#0e7c7b}
+.sl{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px}.sl:first-of-type{margin-top:0}
+.srow{display:flex;gap:6px}.srow input{flex:1;min-width:0}.srow button{flex:none;padding:8px 12px}
+#sRes{margin-top:6px}#sRes .li{padding:7px 8px;border:1px solid var(--line);border-radius:6px;margin-top:4px;cursor:pointer;font-size:12px}#sRes .li:hover{background:#143538}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px;font-size:12px;color:var(--mute)}
+.pager button{padding:5px 10px;font-size:12px}.pager button:disabled{opacity:.4;cursor:not-allowed}
 #mapwrap{position:relative;height:100%;min-width:0;overflow:hidden}
 #bar{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1000;display:flex;align-items:center;gap:4px;background:rgba(15,42,44,.95);padding:6px;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.3);max-width:calc(100% - 16px);overflow-x:auto}
 #bar .grp{display:flex;align-items:center;gap:4px;padding:0 6px;border-left:1px solid var(--line)}
@@ -110,6 +106,14 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 <div id="app">
   <aside>
     <section>
+      <h2>Pencarian</h2>
+      <label class="sl" for="sLat">Koordinat (latitude, longitude)</label>
+      <div class="srow"><input id="sLat" placeholder="-7.2575" inputmode="decimal"><input id="sLng" placeholder="112.7521" inputmode="decimal"><button id="sGoC" type="button">Cari</button></div>
+      <label class="sl" for="sId">ID Polygon / Nama Polygon</label>
+      <div class="srow"><input id="sId" placeholder="PLY-00001 atau nama" autocomplete="off"><button id="sGoP" type="button">Cari</button></div>
+      <div id="sRes"></div>
+    </section>
+    <section>
       <h2>Layer</h2>
       <label class="lg"><input type="checkbox" data-k="customer" checked style="width:auto"><span class="dot" style="background:var(--cust)"></span>Pelanggan (UN ID)</label>
       <label class="lg"><input type="checkbox" data-k="odp" checked style="width:auto"><span class="dot" style="background:var(--odp)"></span>ODP Plan</label>
@@ -121,21 +125,12 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
     <section>
       <h2>Daftar polygon</h2>
       <div id="areas"><span id="empty" style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span></div>
+      <div class="pager" id="pager"></div>
     </section>
   </aside>
   <div id="mapwrap">
     <div id="map"></div>
     <div id="bHint" role="status"></div>
-    <div id="sbox">
-      <button id="sBtn" type="button" aria-label="Cari koordinat atau ID polygon" aria-expanded="false" title="Cari koordinat / ID polygon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
-      <div id="sPanel">
-        <label for="sLat">Koordinat (latitude, longitude)</label>
-        <div class="sr"><input id="sLat" placeholder="-7.2575" inputmode="decimal"><input id="sLng" placeholder="112.7521" inputmode="decimal"><button id="sGoC" type="button">Cari</button></div>
-        <label for="sId">ID Polygon</label>
-        <div class="sr"><input id="sId" placeholder="PLY-00001 atau nama" autocomplete="off"><button id="sGoP" type="button">Cari</button></div>
-        <div id="sRes" style="margin-top:6px"></div>
-      </div>
-    </div>
 <div id="modal" class="mdl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
   <div class="box">
     <h2 id="mTitle">Form Order Desain FTTH</h2>
@@ -423,11 +418,6 @@ $('sessForm').onclick=finishEdit; $('sessEnd').onclick=cancelSession;
 let ptDraft=null, ptMarker=null;
 // ---- Pencarian di peta: koordinat atau ID polygon ----
 let sMark=null;
-function sToggle(open){
-  const o=(open===undefined)?($('sPanel').style.display!=='block'):open;
-  $('sPanel').style.display=o?'block':'none'; $('sBtn').setAttribute('aria-expanded',o);
-  if(o) $('sLat').focus();
-}
 function clearSearch(){ if(sMark){map.removeLayer(sMark);sMark=null} }
 function goCoord(){
   let a=$('sLat').value.trim(), b=$('sLng').value.trim();
@@ -437,7 +427,7 @@ function goCoord(){
   const ll=L.latLng(lat,lng); clearSearch();
   sMark=L.circleMarker(ll,{radius:10,color:'#e11d48',weight:3,fillColor:'#e11d48',fillOpacity:.15}).addTo(map)
     .bindPopup(`<div class="pop"><b>Hasil pencarian</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br><button onclick="clearSearch()">Hapus penanda</button></div>`);
-  map.setView(ll,Math.max(map.getZoom(),17)); sMark.openPopup(); sToggle(false);
+  map.setView(ll,Math.max(map.getZoom(),17)); sMark.openPopup();
 }
 function findAreas(q){
   q=q.trim().toUpperCase(); if(!q) return [];
@@ -447,24 +437,23 @@ function findAreas(q){
 }
 function goPoly(id){
   const l=layerOf(id); if(!l) return toast('Polygon tidak ditemukan di peta');
-  sToggle(false); $('sRes').innerHTML='';
+  $('sRes').innerHTML='';
+  const i=listRows.findIndex(x=>x.id===id); if(i>=0){listPage=Math.floor(i/LIST_PER)+1;drawList()}   // daftar ikut ke halaman polygon ini
   map.fitBounds(l.getBounds(),{padding:[40,40],maxZoom:18});
   l.setStyle({weight:5}); setTimeout(()=>l.setStyle({weight:2}),2500);
   openView(id,l.getBounds().getCenter());
 }
 function searchPoly(){
   const r=findAreas($('sId').value);
-  if(!r.length){$('sRes').innerHTML='<div style="color:#5b706d">Polygon tidak ditemukan.</div>';return}
+  if(!r.length){$('sRes').innerHTML='<div style="color:var(--mute);font-size:12px">Polygon tidak ditemukan.</div>';return}
   if(r.length===1) return goPoly(r[0].id);
   $('sRes').innerHTML=r.map(p=>`<div class="li" data-id="${esc(p.id)}"><b>${esc(p.code)}</b> ${esc(p.name)}</div>`).join('');
   $('sRes').querySelectorAll('.li').forEach(el=>el.onclick=()=>goPoly(el.dataset.id));
 }
-$('sBtn').onclick=()=>sToggle();
 $('sGoC').onclick=goCoord; $('sGoP').onclick=searchPoly;
 $('sLat').addEventListener('keydown',e=>{if(e.key==='Enter')goCoord()});
 $('sLng').addEventListener('keydown',e=>{if(e.key==='Enter')goCoord()});
 $('sId').addEventListener('keydown',e=>{if(e.key==='Enter')searchPoly()});
-$('sPanel').addEventListener('keydown',e=>{if(e.key==='Escape')sToggle(false)});
 
 // ---- Panel = popup Leaflet di peta (form & resume dipindah ke dalam popup) ----
 const BOX={order:$('modal').querySelector('.box'),view:$('modalView').querySelector('.box'),dlg:$('modal2').querySelector('.box'),pt:$('modalPt').querySelector('.box')};
@@ -542,15 +531,26 @@ async function loadAreas(){
   if(session){ if(!ringOf(session)) endSession(); else sessionRing=ringOf(session) }
   ui();
 }
-function renderList(fs){
-  const box=$('areas'); box.innerHTML='';
-  if(!fs.length){box.innerHTML='<span style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span>';return}
-  fs.forEach(f=>{
-    const p=f.properties,d=document.createElement('div');d.className='area';
+const LIST_PER=4; let listRows=[], listPage=1;
+function renderList(fs){                                     // urut terbaru -> terlama
+  const t=p=>p.created_at?Date.parse(p.created_at):0;
+  listRows=fs.map(f=>f.properties).sort((a,b)=>t(b)-t(a)||String(b.code||'').localeCompare(String(a.code||''),'id',{numeric:true}));
+  drawList();
+}
+function drawList(){
+  const box=$('areas'), pg=$('pager'); box.innerHTML='';
+  if(!listRows.length){box.innerHTML='<span style="color:var(--mute)">Belum ada area. Gambar polygon di peta.</span>';pg.innerHTML='';return}
+  const pages=Math.ceil(listRows.length/LIST_PER); listPage=Math.min(Math.max(1,listPage),pages);
+  listRows.slice((listPage-1)*LIST_PER,listPage*LIST_PER).forEach(p=>{
+    const d=document.createElement('div');d.className='area';
     d.innerHTML=`${esc(p.name)}<div style="margin:3px 0;display:flex;flex-wrap:wrap;gap:3px">${badges(p)}</div><small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} demand</small>`;
     d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id)map.fitBounds(l.getBounds())});openView(p.id)};
     box.appendChild(d);
   });
+  pg.innerHTML=pages>1
+    ?`<button id="pgPrev" type="button"${listPage<=1?' disabled':''}>&lsaquo; Sebelumnya</button><span>Hal ${listPage} / ${pages}</span><button id="pgNext" type="button"${listPage>=pages?' disabled':''}>Berikutnya &rsaquo;</button>`
+    :`<span>${listRows.length} polygon</span>`;
+  if(pages>1){$('pgPrev').onclick=()=>{listPage--;drawList()}; $('pgNext').onclick=()=>{listPage++;drawList()}}
 }
 const saveGeom=(id,name,layer)=>sb.rpc('upsert_area',{p_id:id,p_name:name,p_geojson:layer.toGeoJSON().geometry,p_code:null,p_sto:null});
 map.on(L.Draw.Event.CREATED, async e=>{
@@ -574,8 +574,8 @@ const badges = p => badge(p.status);
 const areaColor = p => SC[p.status] || '#0e7c7b';
 const locked = p => p.status === 'dsi_complete';                                   // DSI Complete = terkunci
 const canUpload = p => p.status !== 'dsi_complete';                                // designer boleh upload / upload ulang
-const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Start Design"
-const canStartDsi = p => p.status === 'design_complete';                           // tombol "Drawing DSI"
+const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Upload Design"
+const canStartDsi = p => p.status === 'design_complete';                           // tombol "Submit DSI"
 const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // form Submit DSI
 const isPlan=()=>ROLE==='planner'||ROLE==='admin', isDes=()=>ROLE==='designer'||ROLE==='admin';
 function applyRole(){
