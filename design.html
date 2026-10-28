@@ -22,6 +22,11 @@ body{display:flex;flex-direction:column}
 #side{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 #foot{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid var(--line)}
 #foot button{padding:9px 10px}
+#foot .full{grid-column:1/-1}
+.fb.wide{width:min(620px,100%)}
+.lgt{width:100%;border-collapse:collapse;font-size:12px}
+.lgt th{text-align:left;padding:6px;border-bottom:2px solid var(--line);font-size:11px;color:var(--mute);text-transform:uppercase}
+.lgt td{padding:7px 6px;border-bottom:1px solid #eef2f0}
 .bq{width:100%;border-collapse:collapse;font-size:13px}
 .bq td{padding:6px 0;border-bottom:1px solid #eef2f0}
 .bq td:last-child{text-align:right;font-weight:600}
@@ -108,7 +113,9 @@ async function loadPoints(f, id){
 const TIPE = ['PT1','PT2','PT3','PT4'], TOPO = ['Normal','ODC Less','Mitratel'];
 // Modal HTML untuk form (Upload Desain, Submit DSI)
 let fmSave = null;
-function openForm(title, sub, body, okLabel, onSave){
+function openForm(title, sub, body, okLabel, onSave, opts = {}){
+  $('fmC').style.display = opts.noCancel ? 'none' : '';
+  document.querySelector('#fm .fb').classList.toggle('wide', !!opts.wide);
   $('fmT').textContent = title; $('fmS').textContent = sub; $('fmB').innerHTML = body; $('fmOk').textContent = okLabel;
   fmSave = onSave; $('fm').style.display = 'flex';
   const f = $('fmB').querySelector('input,select'); if(f) f.focus();
@@ -180,6 +187,7 @@ function analyzeBoq(sheets){
 const rp = n => (n === null || n === undefined) ? '-' : 'Rp ' + Math.round(n).toLocaleString('id-ID');
 const cnt = n => Number(n).toLocaleString('id-ID');
 function renderBoq(a){
+  [['tOdp', a.odp], ['tOtb', a.otb], ['tPort', a.port]].forEach(([id, v]) => { if($(id)) $(id).textContent = cnt(v); });   // tampil di Informasi Desain
   const capex = a.port > 0 && a.total !== null ? a.total / a.port : null;
   const row = (l, v) => `<tr><td>${l}</td><td>${v}</td></tr>`, gap = '<tr class="gap"><td colspan="2"></td></tr>';
   const srcs = ['material', 'jasa', 'total'].filter(k => a.src[k]).map(k => `${k.toUpperCase()} baris ${a.src[k].row}`).join(', ');
@@ -189,15 +197,39 @@ function renderBoq(a){
   ['material', 'jasa', 'total'].filter(k => a[k] === null).forEach(k => notes.push(`Baris ${k.toUpperCase()} (kolom G) tidak ditemukan.`));
   $('boqInfo').className = '';
   $('boqInfo').innerHTML = `<table class="bq">
-      ${row('TOTAL ODP', cnt(a.odp))}${row('TOTAL OTB', cnt(a.otb))}${row('TOTAL PORT', cnt(a.port))}${gap}
       ${row('NILAI MATERIAL', rp(a.material))}${row('NILAI JASA', rp(a.jasa))}${row('NILAI TOTAL', rp(a.total))}${gap}
       ${row('CAPEX PER PORT', rp(capex))}</table>
-    <small class="mute" style="margin-top:6px">TOTAL ODP / OTB / PORT = jumlah (nilai kolom G × nilai DESIGNATOR). CAPEX PER PORT = NILAI TOTAL ÷ TOTAL PORT. Sheet: ${esc(a.sheet)}${srcs ? '. Nilai dari kolom G, ' + esc(srcs) : ''}.</small>
+    <small class="mute" style="margin-top:6px">TOTAL ODP / OTB / PORT (di Informasi Desain) = jumlah (nilai kolom G × nilai DESIGNATOR). CAPEX PER PORT = NILAI TOTAL ÷ TOTAL PORT. Sheet: ${esc(a.sheet)}${srcs ? '. Nilai dari kolom G, ' + esc(srcs) : ''}.</small>
     ${notes.map(n => `<small style="color:#b45309;margin-top:4px">${esc(n)}</small>`).join('')}
     <details><summary>Rincian DESIGNATOR (${a.lines.length} jenis)</summary><div class="tw"><table>
       <tr><th>Designator</th><th>Kolom G</th><th>Port</th><th>ODP</th><th>OTB</th></tr>
       ${a.lines.map(l => `<tr><td>${esc(l.k)}</td><td>${cnt(l.q)}</td><td>${cnt(l.port)}</td><td>${cnt(l.odp)}</td><td>${cnt(l.otb)}</td></tr>`).join('') || '<tr><td colspan="5">-</td></tr>'}
     </table></div></details>`;
+}
+const kvId = (l, id, hasBoq, full) => `<div${full ? ' class="full"' : ''}><small>${l}</small><div id="${id}">${hasBoq ? 'Memuat...' : '-'}</div></div>`;
+// ---- Log Order: riwayat status, tanggal, dan durasi antar status ----
+const LEGACY = {designed:'design_complete', completed:'dsi_complete'};    // kode status pada log lama
+function logCode(v){
+  if(SL[v]) return v;
+  const byLabel = Object.keys(SL).find(k => SL[k] === v); if(byLabel) return byLabel;
+  return LEGACY[v] || null;
+}
+function durTxt(ms){
+  const m = Math.floor(Math.max(0, ms) / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), n = m % 60;
+  const t = [d ? d + ' hari' : '', h ? h + ' jam' : '', n ? n + ' menit' : ''].filter(Boolean).join(' ');
+  return t || '< 1 menit';
+}
+async function openLog(){
+  openForm('Log Order', 'Riwayat status order. Durasi dihitung dari status sebelumnya.', '<div class="full mute">Memuat...</div>', 'Tutup', async () => closeForm(), {wide:true, noCancel:true});
+  const {data, error} = await sb.from('area_log').select('status,at').eq('area_id', areaId).order('at', {ascending:true});
+  if(!fmSave) return;                                    // modal sudah ditutup saat memuat
+  if(error){ $('fmB').innerHTML = `<div class="full">${esc(error.message)}</div>`; return; }
+  if(!data.length){ $('fmB').innerHTML = '<div class="full mute">Belum ada riwayat status.</div>'; return; }
+  const rows = data.map(r => ({code:logCode(r.status), raw:r.status, at:new Date(r.at)}));
+  const body = rows.map((r, i) => `<tr><td>${esc(fmt(r.at))}</td><td>${r.code ? badge(r.code) : esc(r.raw)}</td><td>${i ? durTxt(r.at - rows[i - 1].at) : '-'}</td></tr>`).join('');
+  const first = rows[0], last = rows[rows.length - 1], done = last.code === 'dsi_complete';
+  $('fmB').innerHTML = `<div class="full"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
+    <div class="full mute" style="font-size:12px">${done ? 'Total sampai DSI Complete' : 'Total sejak status pertama (masih berjalan)'}: <b>${durTxt((done ? last.at : new Date()) - first.at)}</b>${done ? '' : `<br>Di status terakhir sejak ${esc(fmt(last.at))}: <b>${durTxt(new Date() - last.at)}</b>`}</div>`;
 }
 function makeMap(){
   const map = L.map('map', {preferCanvas:true}).setView([-2.5, 118], 5);
@@ -284,17 +316,17 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   $('side').innerHTML = `
     <h2 class="ptl">View Design</h2>
     <div class="card"><small>Status Order</small><div id="stat" style="margin-top:6px"></div></div>
-    <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div></div>
+    <div class="card"><small>Polygon ID</small><div class="big">${esc(p.code)}</div><div>${esc(p.name)}</div>
+      <div class="kv" style="margin-top:8px">${kv('Total Pelanggan', p.customer)}${kv('Total Demand', p.prospect)}</div></div>
     <div class="card"><h3>Informasi Desain</h3><div class="kv">
-      ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Design', p.tipe_design)}${kv('Topology', p.topology)}${kv('ID IHLD', p.ihld_id)}
-      ${kv('Total Pelanggan', p.customer)}${kv('Total ODP', p.odp)}${kv('Total Demand', p.prospect)}${kv('DSI ID', p.dsi_id)}
-      ${kv('DSI Name', p.dsi_name, 1)}${kv('Disubmit', fmt(p.created_at))}${kv('Didesain', fmt(p.designed_at))}
-      ${p.completed_at ? kv('DSI Complete', fmt(p.completed_at), 1) : ''}</div></div>
+      ${kv('Nama Proyek', p.nama_proyek, 1)}${kv('Tipe Design', p.tipe_design)}${kv('Topology', p.topology)}
+      ${kv('ID IHLD', p.ihld_id)}${kv('DSI ID', p.dsi_id)}${kv('DSI Name', p.dsi_name, 1)}
+      ${kvId('TOTAL ODP', 'tOdp', p.boq_path)}${kvId('TOTAL OTB', 'tOtb', p.boq_path)}${kvId('TOTAL PORT', 'tPort', p.boq_path)}</div></div>
     <div class="card"><h3>Wilayah Telkom</h3><div class="kv">
       ${kv('STO', p.sto_code)}${kv('Nama STO', s.nama_sto)}${kv('Area', s.area)}${kv('Regional', s.regional)}${kv('Branch', s.branch)}
       ${kv('Cluster', s.cluster)}${kv('WOK', s.wok)}${kv('District', s.district)}${kv('Sub District', s.sub_district)}${kv('Kabupaten/Kota', s.kabupaten_kota, 1)}</div></div>
     <div class="card" id="boqCard"><h3>Informasi BoQ</h3>
-      <div id="boqInfo" class="mute">${p.boq_path ? 'Memuat BoQ...' : 'Belum ada BoQ. Tekan Start Design untuk mengupload.'}</div></div>`;
+      <div id="boqInfo" class="mute">${p.boq_path ? 'Memuat BoQ...' : 'Belum ada BoQ. Tekan Upload Design untuk mengupload.'}</div></div>`;
 
   // ---- Status + tombol bawah ----
   function renderStatus(){ $('stat').innerHTML = badge(p.status); polyL.setStyle({color:areaColor(p)}); }
@@ -305,17 +337,19 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     $('foot').innerHTML = `
       <button id="bDlK" type="button" ${noK ? 'disabled title="Belum ada KML"' : ''}>Download KML</button>
       <button id="bDlB" type="button" ${noB ? 'disabled title="Belum ada BoQ"' : ''}>Download BoQ</button>
-      <button id="bStart" type="button" class="pri" ${startWhy ? `disabled title="${startWhy}"` : ''}>Start Design</button>
-      <button id="bDsi" type="button" class="pri" ${dsiWhy ? `disabled title="${dsiWhy}"` : ''}>Drawing DSI</button>`;
+      <button id="bStart" type="button" class="pri" ${startWhy ? `disabled title="${startWhy}"` : ''}>Upload Design</button>
+      <button id="bDsi" type="button" class="pri" ${dsiWhy ? `disabled title="${dsiWhy}"` : ''}>Submit DSI</button>
+      <button id="bLog" type="button" class="full">Log Order</button>`;
     $('bDlK').onclick = () => dlFile(p.kml_path);
     $('bDlB').onclick = () => dlFile(p.boq_path);
     $('bStart').onclick = startDesign;
     $('bDsi').onclick = drawingDsi;
+    $('bLog').onclick = openLog;
   }
   const refresh = () => { renderStatus(); renderFoot(); };
   refresh();
 
-  // Start Design: status -> Ongoing Design (bila masih Submitted/Revision), lalu form upload tampil
+  // Upload Design: status -> Ongoing Design (bila masih Submitted/Revision), lalu form upload tampil
   async function startDesign(){
     if(canStartDesign(p)){
       const {error} = await sb.rpc('start_design', {p_area:areaId});
@@ -324,7 +358,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     }
     openUploadForm();
   }
-  // Drawing DSI: status -> Ongoing DSI (bila masih Design Complete), lalu form submit DSI tampil
+  // Submit DSI: status -> Ongoing DSI (bila masih Design Complete), lalu form submit DSI tampil
   async function drawingDsi(){
     if(p.status === 'design_complete'){
       const {error} = await sb.rpc('start_dsi', {p_area:areaId});
@@ -380,12 +414,13 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   (async () => {
     if(!p.boq_path) return;
     const {data, error} = await sb.storage.from('designs').download(p.boq_path);
-    if(error){ $('boqInfo').textContent = error.message; return; }
+    const noTot = () => ['tOdp', 'tOtb', 'tPort'].forEach(id => { if($(id)) $(id).textContent = '-'; });
+    if(error){ $('boqInfo').textContent = error.message; noTot(); return; }
     try{
       const wb = XLSX.read(new Uint8Array(await data.arrayBuffer()), {type:'array'});
       const sheets = wb.SheetNames.map(n => ({name:n, rows:XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, defval:'', raw:true}).slice(0, 5000)}));
       renderBoq(analyzeBoq(sheets));
-    }catch(err){ $('boqInfo').textContent = 'Gagal membaca BoQ: ' + err.message; }
+    }catch(err){ $('boqInfo').textContent = 'Gagal membaca BoQ: ' + err.message; noTot(); }
   })();
 })().catch(err => {            // jangan biarkan halaman kosong tanpa pesan
   console.error(err);
