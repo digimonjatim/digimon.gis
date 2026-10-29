@@ -107,6 +107,8 @@ button{padding:5px 9px}
 .gpop .val{padding:2px 0;min-height:20px}
 .gpop .act{margin-top:8px}
 .gpop input{padding:4px 6px}
+.pop .pi{border-collapse:collapse;margin:4px 0 2px}.pop .pi td{padding:1px 8px 1px 0;vertical-align:top;font-size:12px}.pop .pi td:first-child{color:#5b706d;white-space:nowrap}
+.gpop textarea{width:100%;padding:4px 6px;font:inherit;font-size:12px;border:1px solid #c5cfcb;border-radius:6px;resize:vertical;color:var(--ink);background:#fff}
 </style>
 </head>
 <body>
@@ -193,12 +195,15 @@ button{padding:5px 9px}
   </div>
 </div>
 <div id="modalPt" class="mdl" role="dialog" aria-modal="true" aria-labelledby="ptTitle">
-  <div class="box" style="width:min(280px,68vw)">
+  <div class="box" style="width:min(300px,68vw)">
     <h2 id="ptTitle">Tambah titik</h2>
     <div class="grid">
-      <div class="full"><label for="ptName" id="ptNameL">Nama</label><input id="ptName" maxlength="80" autocomplete="off"></div>
+      <div><label for="ptId" id="ptIdL">ID</label><input id="ptId" readonly></div>
+      <div><label for="ptNm" id="ptNmL">Name</label><input id="ptNm" readonly></div>
+      <div class="full"><label for="ptNote">Keterangan (opsional)</label><input id="ptNote" maxlength="200" autocomplete="off"></div>
       <div><label for="ptLat">Latitude</label><input id="ptLat" readonly></div>
       <div><label for="ptLng">Longitude</label><input id="ptLng" readonly></div>
+      <div class="full"><label for="ptAddr">Alamat (otomatis)</label><textarea id="ptAddr" rows="2" maxlength="300" placeholder="Mencari alamat..."></textarea></div>
     </div>
     <div class="act"><button id="ptCancel" type="button">Batal</button><button id="ptSave" type="button" class="pri">Simpan</button></div>
   </div>
@@ -318,8 +323,8 @@ async function loadPoints(){
     const m=drag
       ? L.marker([y,x],{draggable:true,icon:L.divIcon({className:'',iconSize:[14,14],html:`<span style="display:block;width:14px;height:14px;border-radius:50%;background:${COL[p.kind]};border:2px solid #fff;box-shadow:0 0 0 1px #0006"></span>`})})
       : L.circleMarker([y,x],{radius:p.kind==='customer'?4:7,color:'#fff',weight:1,fillColor:COL[p.kind],fillOpacity:.95});
-    if(drag) m.on('dragend',ev=>{const g=ev.target.getLatLng();pendingMoves[p.id]={lat:g.lat,lng:g.lng};ui()});
-    m.bindPopup(`<div class="pop"><b>${LABEL[p.kind]}</b><br>${p.un_id?'UN ID: '+esc(p.un_id)+'<br>':''}${p.name?esc(p.name)+'<br>':''}${y.toFixed(6)}, ${x.toFixed(6)}<br><button onclick="delPoint('${p.id}')">Hapus titik</button></div>`);
+    if(drag) m.on('dragend',ev=>{const g=ev.target.getLatLng();pendingMoves[p.id]={lat:g.lat,lng:g.lng,kind:p.kind};ui()});
+    m.bindPopup(pointPopup(p,x,y));
     layers[p.kind].addLayer(m);
   });
   $('count').textContent=`${data.features.length} titik di layar`+(data.features.length>=LIMIT?` (dibatasi ${LIMIT}, zoom in)`:'');
@@ -501,15 +506,93 @@ function showPanel(name,ll,onClose){
 }
 function closePanel(){ if(panel) map.closePopup(panel.p) }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel&&!drawing)closePanel()});
+// ---- ID otomatis + alamat otomatis untuk ODP Plan / Demand ----
+const genCode = kind => (kind === 'odp' ? 'ODP' : 'DMD') + String(Math.floor(100000 + Math.random() * 900000));
+// Alamat dari koordinat: OpenStreetMap Nominatim (maks. 1 permintaan per detik, hasil disimpan di cache)
+const geoCache = new Map(); let geoLast = 0, geoChain = Promise.resolve();
+function formatAddress(j){
+  if(!j || j.error) return '';
+  const a = j.address || {};
+  const road = [a.road || a.pedestrian || a.footway || a.path, a.house_number].filter(Boolean).join(' ');
+  const parts = [road, a.neighbourhood || a.hamlet, a.suburb || a.village, a.city_district || a.subdistrict || a.district,
+                 a.city || a.town || a.municipality || a.county, a.state, a.postcode].filter(Boolean);
+  return [...new Set(parts)].join(', ') || String(j.display_name || '').replace(/, Indonesia$/, '');
+}
+function geocode(lat, lng){
+  const key = lat.toFixed(5) + ',' + lng.toFixed(5);
+  if(geoCache.has(key)) return Promise.resolve(geoCache.get(key));
+  const run = async () => {
+    const wait = geoLast + 1100 - Date.now(); if(wait > 0) await new Promise(r => setTimeout(r, wait));
+    geoLast = Date.now();
+    try{
+      const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 8000);
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=id&lat=${lat}&lon=${lng}`, {signal:ac.signal});
+      clearTimeout(tm);
+      if(!r.ok) return null;
+      const a = formatAddress(await r.json());
+      if(a) geoCache.set(key, a);
+      return a || null;
+    }catch(e){ return null; }
+  };
+  const p = geoChain.then(run); geoChain = p.catch(() => {}); return p;
+}
+// Insert titik; jika ID acak bentrok (kolom un_id unik), buat ID baru dan ulangi
+async function insertPoints(rows){
+  for(let i = 0; i < 3; i++){
+    const {error} = await sb.from('points').insert(rows);
+    if(!error) return null;
+    if(error.code !== '23505' || !/un_id/.test((error.message || '') + (error.details || ''))) return error;
+    rows.forEach(r => { r.un_id = genCode(r.kind); });
+  }
+  return {message:'Gagal membuat ID unik. Coba simpan lagi.'};
+}
+const piRows = (p, x, y) => {
+  const net = p.kind !== 'customer', row = (l, v) => `<tr><td>${l}</td><td>${v}</td></tr>`;
+  let r = row(net ? LABEL[p.kind] + ' ID' : 'UN ID', esc(p.un_id || '-'));
+  if(net) r += row(LABEL[p.kind] + ' Name', esc(p.name || LABEL[p.kind])) + row('Keterangan', esc(p.note || '-'));
+  else if(p.name) r += row('Nama', esc(p.name));
+  r += row('Latitude', Number(y).toFixed(6)) + row('Longitude', Number(x).toFixed(6));
+  if(net) r += row('Alamat', p.address ? esc(p.address) : '<i>belum ada</i>');
+  return `<table class="pi">${r}</table>`;
+};
+function pointPopup(p, x, y){
+  const net = p.kind !== 'customer';
+  const fill = net && !p.address ? `<button type="button" class="n" onclick="fillAddress('${p.id}',${y},${x})">Ambil alamat</button>` : '';
+  return `<div class="pop"><b>${LABEL[p.kind]}</b>${piRows(p, x, y)}${fill}<button type="button" onclick="delPoint('${p.id}')">Hapus titik</button></div>`;
+}
+async function fillAddress(id, lat, lng){            // untuk titik lama yang belum punya alamat
+  map.closePopup();
+  const a = await geocode(lat, lng);
+  if(!a) return toast('Alamat tidak ditemukan. Coba lagi nanti.', 'warn');
+  const {error} = await sb.from('points').update({address:a}).eq('id', id);
+  error ? toast(error.message, 'error') : loadPoints();
+}
+async function refreshAddresses(jobs){               // titik ODP Plan / Demand yang digeser: alamat diperbarui di latar belakang
+  for(const [pid, m] of jobs){
+    const a = await geocode(m.lat, m.lng); if(!a) continue;
+    await sb.from('points').update({address:a}).eq('id', pid);
+  }
+  loadPoints();
+}
+let ptTok = 0;
 function openPoint(kind,ll){
   if(busy()) return toast('Selesaikan form yang sedang terbuka dulu');
   closePanel();
-  ptDraft={kind,ll};
+  ptDraft={kind,ll,code:genCode(kind),tok:++ptTok};
   ptMarker=L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:COL[kind],fillOpacity:.9}).addTo(map);
   $('ptTitle').innerHTML=`<span class="dot" style="background:${COL[kind]}"></span>Tambah ${LABEL[kind]}`;
-  $('ptNameL').textContent=kind==='odp'?'Kode / Nama ODP Plan':'Nama Demand';
-  $('ptName').value=''; $('ptLat').value=ll.lat.toFixed(6); $('ptLng').value=ll.lng.toFixed(6);
-  showPanel('pt',ll,cleanupPt); $('ptName').focus();
+  $('ptIdL').textContent=LABEL[kind]+' ID'; $('ptNmL').textContent=LABEL[kind]+' Name';
+  $('ptId').value=ptDraft.code; $('ptNm').value=LABEL[kind]; $('ptNote').value='';
+  $('ptLat').value=ll.lat.toFixed(6); $('ptLng').value=ll.lng.toFixed(6);
+  $('ptAddr').value=''; $('ptAddr').placeholder='Mencari alamat...';
+  showPanel('pt',ll,cleanupPt); $('ptNote').focus();
+  const d=ptDraft;
+  d.addrP=geocode(ll.lat,ll.lng).then(a=>{
+    if(ptDraft!==d) return a;                                  // form sudah ditutup / diganti
+    if(a){ if(!$('ptAddr').value) $('ptAddr').value=a }
+    else $('ptAddr').placeholder='Alamat tidak ditemukan. Isi manual (opsional).';
+    return a;
+  });
 }
 function cleanupPt(){
   if(ptMarker){map.removeLayer(ptMarker);ptMarker=null}
@@ -517,18 +600,23 @@ function cleanupPt(){
 }
 const closePoint=()=>{if(panel&&panel.name==='pt')closePanel()};
 $('ptCancel').onclick=closePoint;
-$('ptName').addEventListener('keydown',e=>{if(e.key==='Enter')$('ptSave').click()});
+$('ptNote').addEventListener('keydown',e=>{if(e.key==='Enter')$('ptSave').click()});
 $('ptSave').onclick=async()=>{
   if(!ptDraft) return;
-  const {kind,ll}=ptDraft, name=$('ptName').value.trim()||null;
-  if(session){                                              // mode edit: disimpan nanti lewat tombol Selesai
-    const a={id:++addSeq,kind,name,lat:ll.lat,lng:ll.lng};
-    a.tmp=L.circleMarker([a.lat,a.lng],{radius:8,color:'#fff',weight:2,fillColor:COL[kind],fillOpacity:.9,dashArray:'3'}).addTo(tempLayer)
-      .bindPopup(`<div class="pop"><b>${LABEL[kind]} (belum disimpan)</b>${name?'<br>'+esc(name):''}<br><button onclick="dropAdd(${a.id})">Batalkan titik ini</button></div>`);
-    pendingAdds.push(a); closePoint(); ui(); return;
-  }
+  const d=ptDraft, {kind,ll}=d;
+  const rec={kind,un_id:d.code,name:LABEL[kind],note:$('ptNote').value.trim()||null,address:$('ptAddr').value.trim()||null,lat:ll.lat,lng:ll.lng};
   $('ptSave').disabled=true;
-  const {error}=await sb.from('points').insert({kind,name,lat:ll.lat,lng:ll.lng});
+  if(!rec.address){                                            // tunggu alamat otomatis sebentar bila belum selesai
+    const a=await Promise.race([d.addrP,new Promise(r=>setTimeout(()=>r(null),4000))]);
+    rec.address=$('ptAddr').value.trim()||a||null;
+  }
+  if(session){                                                 // mode edit: disimpan nanti lewat tombol Selesai
+    const a={...rec,id:++addSeq};
+    a.tmp=L.circleMarker([a.lat,a.lng],{radius:8,color:'#fff',weight:2,fillColor:COL[kind],fillOpacity:.9,dashArray:'3'}).addTo(tempLayer)
+      .bindPopup(`<div class="pop"><b>${LABEL[kind]} (belum disimpan)</b>${piRows(a,a.lng,a.lat)}<button type="button" onclick="dropAdd(${a.id})">Batalkan titik ini</button></div>`);
+    pendingAdds.push(a); $('ptSave').disabled=false; closePoint(); ui(); return;
+  }
+  const error=await insertPoints([rec]);
   $('ptSave').disabled=false;
   if(error) return toast(error.message,'error');
   closePoint(); loadPoints();
@@ -801,12 +889,13 @@ async function saveEdit(name,sto){
     }
     if(geoChanged){const {error}=await saveGeom(id,name,l); if(error) throw new Error(error.message)}
     if(dataChanged){const {error}=await sb.from('project_areas').update({name,sto_code:sto}).eq('id',id); if(error) throw new Error(error.message)}
-    if(adds.length){const {error}=await sb.from('points').insert(adds.map(a=>({kind:a.kind,name:a.name,lat:a.lat,lng:a.lng}))); if(error) throw new Error(error.message)}
+    if(adds.length){const error=await insertPoints(adds.map(a=>({kind:a.kind,un_id:a.un_id,name:a.name,note:a.note,address:a.address,lat:a.lat,lng:a.lng}))); if(error) throw new Error(error.message)}
   }catch(err){$('mSave').disabled=false; return toast(err.message,'error')}
   $('mSave').disabled=false;
   order.saved=true; closeOrder(); finishSession();
   toast(moves.length||adds.length||geoChanged||dataChanged?'Perubahan disimpan. Status: Revision Polygon':'Tidak ada perubahan');
   await loadAreas(); loadPoints();
+  const jobs=moves.filter(([pid,m])=>m.kind==='odp'||m.kind==='prospect'); if(jobs.length) refreshAddresses(jobs);   // alamat titik yang digeser, di latar belakang
 }
 
 // ---- Realtime ----
