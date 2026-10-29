@@ -27,6 +27,9 @@ body{display:flex;flex-direction:column}
 .lgt{width:100%;border-collapse:collapse;font-size:12px}
 .lgt th{text-align:left;padding:6px;border-bottom:2px solid var(--line);font-size:11px;color:var(--mute);text-transform:uppercase}
 .lgt td{padding:7px 6px;border-bottom:1px solid #eef2f0}
+.lgp{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--mute)}
+.lgp button{padding:4px 10px;font-size:12px}
+.lgp button:disabled{opacity:.4;cursor:not-allowed}
 .bq{width:100%;border-collapse:collapse;font-size:13px}
 .bq td{padding:6px 0;border-bottom:1px solid #eef2f0}
 .bq td:last-child{text-align:right;font-weight:600}
@@ -244,10 +247,21 @@ async function openLog(){
   if(error){ $('fmB').innerHTML = `<div class="full">${esc(error.message)}</div>`; return; }
   if(!data.length){ $('fmB').innerHTML = '<div class="full mute">Belum ada riwayat status.</div>'; return; }
   const rows = data.map(r => ({code:logCode(r.status), raw:r.status, at:new Date(r.at)}));
-  const body = rows.map((r, i) => `<tr><td>${esc(fmt(r.at))}</td><td>${r.code ? badge(r.code) : esc(r.raw)}</td><td>${i ? durTxt(r.at - rows[i - 1].at) : '-'}</td></tr>`).join('');
   const first = rows[0], last = rows[rows.length - 1], done = last.code === 'dsi_complete';
-  $('fmB').innerHTML = `<div class="full"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
-    <div class="full mute" style="font-size:12px">${done ? 'Total sampai DSI Complete' : 'Total sejak status pertama (masih berjalan)'}: <b>${durTxt((done ? last.at : new Date()) - first.at)}</b>${done ? '' : `<br>Di status terakhir sejak ${esc(fmt(last.at))}: <b>${durTxt(new Date() - last.at)}</b>`}</div>`;
+  const LOG_PER = 10, pages = Math.ceil(rows.length / LOG_PER); let lp = 1;
+  const summary = `${done ? 'Total sampai DSI Complete' : 'Total sejak status pertama (masih berjalan)'}: <b>${durTxt((done ? last.at : new Date()) - first.at)}</b>${done ? '' : `<br>Di status terakhir sejak ${esc(fmt(last.at))}: <b>${durTxt(new Date() - last.at)}</b>`}`;
+  const draw = () => {
+    const from = (lp - 1) * LOG_PER;
+    const body = rows.slice(from, from + LOG_PER).map((r, j) => { const i = from + j;
+      return `<tr><td>${esc(fmt(r.at))}</td><td>${r.code ? badge(r.code) : esc(r.raw)}</td><td>${i ? durTxt(r.at - rows[i - 1].at) : '-'}</td></tr>`; }).join('');
+    $('fmB').innerHTML = `<div class="full"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
+      <div class="full lgp">${pages > 1
+        ? `<button id="lgPrev" type="button"${lp <= 1 ? ' disabled' : ''}>&lsaquo; Sebelumnya</button><span>Hal ${lp} / ${pages} · ${rows.length} entri</span><button id="lgNext" type="button"${lp >= pages ? ' disabled' : ''}>Berikutnya &rsaquo;</button>`
+        : `<span>${rows.length} entri</span>`}</div>
+      <div class="full mute" style="font-size:12px">${summary}</div>`;
+    if(pages > 1){ $('lgPrev').onclick = () => { lp--; draw(); }; $('lgNext').onclick = () => { lp++; draw(); }; }
+  };
+  draw();
 }
 function pointInfo(q, y, x){
   const net = q.kind !== 'customer', row = (l, v) => `<tr><td style="color:#5b706d;padding-right:8px;white-space:nowrap">${l}</td><td>${v}</td></tr>`;
