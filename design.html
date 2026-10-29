@@ -249,6 +249,15 @@ async function openLog(){
   $('fmB').innerHTML = `<div class="full"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
     <div class="full mute" style="font-size:12px">${done ? 'Total sampai DSI Complete' : 'Total sejak status pertama (masih berjalan)'}: <b>${durTxt((done ? last.at : new Date()) - first.at)}</b>${done ? '' : `<br>Di status terakhir sejak ${esc(fmt(last.at))}: <b>${durTxt(new Date() - last.at)}</b>`}</div>`;
 }
+function pointInfo(q, y, x){
+  const net = q.kind !== 'customer', row = (l, v) => `<tr><td style="color:#5b706d;padding-right:8px;white-space:nowrap">${l}</td><td>${v}</td></tr>`;
+  let r = row(net ? LABEL[q.kind] + ' ID' : 'UN ID', esc(q.un_id || '-'));
+  if(net) r += row(LABEL[q.kind] + ' Name', esc(q.name || LABEL[q.kind])) + row('Keterangan', esc(q.note || '-'));
+  else if(q.name) r += row('Nama', esc(q.name));
+  r += row('Latitude', y.toFixed(6)) + row('Longitude', x.toFixed(6));
+  if(net) r += row('Alamat', q.address ? esc(q.address) : '-');
+  return `<b>${LABEL[q.kind]}</b><table style="border-collapse:collapse;font-size:12px;margin-top:4px">${r}</table>`;
+}
 function makeMap(){
   const map = L.map('map', {preferCanvas:true}).setView([-2.5, 118], 5);
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
@@ -290,7 +299,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
   (ptsData.features || []).forEach(ft => {
     const q = ft.properties, [x, y] = ft.geometry.coordinates; cnt[q.kind]++;
     L.circleMarker([y, x], {radius:q.kind==='customer'?4:7, color:'#fff', weight:1, fillColor:COL[q.kind], fillOpacity:.95})
-      .bindPopup(`<b>${LABEL[q.kind]}</b>${q.un_id?'<br>UN ID: '+esc(q.un_id):''}${q.name?'<br>'+esc(q.name):''}`).addTo(groups[q.kind]);
+      .bindPopup(pointInfo(q, y, x)).addTo(groups[q.kind]);
     groups[q.kind].addTo(map);
   });
 
