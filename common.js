@@ -10,8 +10,8 @@ const badges = p => badge(p.status);
 const areaColor = p => SC[p.status] || '#0e7c7b';
 const locked = p => p.status === 'dsi_complete';                                   // DSI Complete = terkunci
 const canUpload = p => p.status !== 'dsi_complete';                                // designer boleh upload / upload ulang
-const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Start Design"
-const canStartDsi = p => p.status === 'design_complete';                           // tombol "Drawing DSI"
+const canStartDesign = p => p.status === 'submitted' || p.status === 'revision';   // tombol "Upload Design"
+const canStartDsi = p => p.status === 'design_complete';                           // tombol "Submit DSI"
 const canDsi = p => p.status === 'design_complete' || p.status === 'ongoing_dsi';  // form Submit DSI
 const fmt = t => t ? new Date(t).toLocaleString('id-ID') : '';
 function ago(t){
@@ -80,7 +80,7 @@ function toast(msg, type){ notify(msg, type); }   // nama lama tetap dipakai di 
 // Header + cek login. Mengembalikan peran user, atau null (sudah dialihkan / tanpa peran).
 async function initPage(active){
   $('hdr').innerHTML = `<header class="top"><b>DIGIMON GIS</b>
-    <nav><a href="index.html" class="${active==='map'?'on':''}">Peta Polygon</a><a href="table.html" class="${active==='table'?'on':''}">Data Tabel</a></nav>
+    <nav><a href="index.html" class="${active==='map'?'on':''}">Peta Polygon</a><a href="table.html" class="${active==='table'?'on':''}">List Polygon</a></nav>
     <span class="sp"></span><span class="sub" id="who"></span>
     <button id="out" type="button">Keluar</button></header>`;
   $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
