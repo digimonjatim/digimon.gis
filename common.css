@@ -23,3 +23,15 @@ html,body{font-size:13px}
 select,input{padding:5px 8px}
 button,.btn{padding:5px 10px}
 .st{padding:1px 8px;font-size:10.5px}
+/* ---- Responsif & mobile ---- */
+@supports (height:100dvh){html,body{height:100dvh}}
+.top nav{min-width:0}
+@media (max-width:600px){
+  .top{gap:8px;padding:0 8px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .top b{font-size:13px;white-space:nowrap}
+  .top nav a{padding:5px 8px;font-size:12px;white-space:nowrap}
+  .top .sub{display:none}
+}
+@media (max-width:380px){.top b{display:none}}
+@media (max-width:720px){select,input,textarea{font-size:16px}}      /* cegah zoom otomatis iOS saat fokus */
+@media (pointer:coarse){button,.btn,select,input:not([type=checkbox]):not([type=radio]){min-height:40px}}   /* target sentuh min. 40px */
