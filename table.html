@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>List Polygon - DIGIMON GIS</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="common.css?v=7">
@@ -46,6 +46,30 @@ th{padding:7px 8px}td{padding:6px 8px}
 .trhead{display:flex;align-items:center;justify-content:space-between;margin:2px 0 6px;font-size:12px;color:var(--mute)}
 .trhead h3{margin:0;font-size:12px}
 @media(max-width:900px){.badges{grid-template-columns:repeat(2,1fr)}.drow,.drow3{grid-template-columns:1fr}}
+/* ---- Responsif & mobile ---- */
+@supports (height:100dvh){html,body{height:100dvh}}
+.sortm{display:none}
+@media (max-width:700px){
+  main{padding:8px}
+  .ch{height:200px}.ch.s{height:140px}
+  .acts{flex-wrap:wrap}.acts .sp{display:none}
+  #cnt{flex:1 1 100%}
+  /* tabel menjadi kartu */
+  .sortm{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:12px;color:var(--mute)}
+  .sortm select{flex:1}
+  #tblCard{background:transparent;border:0;padding:0}
+  .tw{max-height:none;overflow:visible}
+  table,thead,tbody,tr,td{display:block}
+  thead{display:none}
+  tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:10px;margin-bottom:8px;background:#fff;border:1px solid var(--line);border-radius:10px}
+  td{padding:0;border:0;word-break:break-word}
+  td[data-label]::before{content:attr(data-label);display:block;font-size:10.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.3px}
+  td.c-all{grid-column:1/-1}
+  tbody tr:hover td{background:none}
+  td .btn{display:block;text-align:center;width:100%}
+  .pg{justify-content:space-between}
+}
+@media (max-width:520px){.grid4,.srch{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -91,7 +115,8 @@ th{padding:7px 8px}td{padding:6px 8px}
       <div class="card dc"><h3>DSI Complete <span id="trN3"></span></h3><div class="ch s"><canvas id="chT3"></canvas></div></div>
     </div>
   </section>
-  <section class="card">
+  <section class="card" id="tblCard">
+    <div class="sortm"><label>Urutkan <select id="sortSel"></select></label><button id="sortDir" type="button" aria-label="Arah urutan">▼</button></div>
     <div class="tw"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
     <div class="pg"><button id="prev" type="button">Sebelumnya</button><span id="pgi" class="mute"></span><button id="next" type="button">Berikutnya</button></div>
   </section>
@@ -102,7 +127,8 @@ th{padding:7px 8px}td{padding:6px 8px}
 <script src="config.js"></script>
 <script src="common.js?v=7"></script>
 <script>
-const PER = 25;
+const mqM = window.matchMedia('(max-width:700px)');
+const perPage = () => mqM.matches ? 10 : 25;      // layar kecil: 10 kartu per halaman
 // Pakai list_areas (005); jika belum terpasang, susun dari get_areas + tabel project_areas
 async function loadRows(){
   const r = await sb.rpc('list_areas');
@@ -249,20 +275,25 @@ function doSort(){
   });
 }
 function render(){
-  const pages = Math.max(1, Math.ceil(VIEW.length / PER)); page = Math.min(page, pages);
+  const PER = perPage(), pages = Math.max(1, Math.ceil(VIEW.length / PER)); page = Math.min(page, pages);
   $('thead').innerHTML = '<tr>' + COLS.map(c => `<th data-k="${c[0]}">${c[1]}${sortKey===c[0] ? (sortDir>0?' ▲':' ▼') : ''}</th>`).join('') + '<th></th></tr>';
   $('thead').querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
     const k = th.dataset.k; sortDir = (k === sortKey) ? -sortDir : 1; sortKey = k; doSort(); render();
   });
   const rows = VIEW.slice((page-1)*PER, page*PER);
-  $('tbody').innerHTML = rows.map(r => '<tr>' + COLS.map(c =>
-      `<td>${c[2] ? c[2](r) : nz(r[c[0]]) ? esc(r[c[0]]) : '<span class="mute">-</span>'}</td>`).join('') +
-      `<td><a class="btn" href="design.html?id=${esc(r.id)}">Lihat</a></td></tr>`).join('')
+  $('tbody').innerHTML = rows.map(r => '<tr>' + COLS.map((c, i) =>
+      `<td data-label="${esc(c[1])}"${i === 0 ? ' class="c-all"' : ''}>${c[2] ? c[2](r) : nz(r[c[0]]) ? esc(r[c[0]]) : '<span class="mute">-</span>'}</td>`).join('') +
+      `<td class="c-all"><a class="btn" href="design.html?id=${esc(r.id)}">Lihat</a></td></tr>`).join('')
     || `<tr><td colspan="${COLS.length+1}" class="mute" style="padding:20px">Tidak ada data yang cocok</td></tr>`;
+  $('sortSel').value = sortKey; $('sortDir').textContent = sortDir > 0 ? '▲' : '▼';
   $('cnt').textContent = `${VIEW.length} dari ${ALL.length} data`;
   $('pgi').textContent = `Hal ${page} / ${pages}`;
   $('prev').disabled = page <= 1; $('next').disabled = page >= pages;
 }
+$('sortSel').innerHTML = COLS.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
+$('sortSel').onchange = e => { sortKey = e.target.value; doSort(); page = 1; render(); };    // pengurutan di layar kecil (judul kolom disembunyikan)
+$('sortDir').onclick = () => { sortDir = -sortDir; doSort(); render(); };
+mqM.addEventListener('change', () => render());
 $('prev').onclick = () => { page--; render(); };
 $('next').onclick = () => { page++; render(); };
 $('apply').onclick = apply;
