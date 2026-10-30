@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>DIGIMON GIS</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
@@ -109,6 +109,42 @@ button{padding:5px 9px}
 .gpop input{padding:4px 6px}
 .pop .pi{border-collapse:collapse;margin:4px 0 2px}.pop .pi td{padding:1px 8px 1px 0;vertical-align:top;font-size:12px}.pop .pi td:first-child{color:#5b706d;white-space:nowrap}
 .gpop textarea{width:100%;padding:4px 6px;font:inherit;font-size:12px;border:1px solid #c5cfcb;border-radius:6px;resize:vertical;color:var(--ink);background:#fff}
+/* ===== Responsif & mobile ===== */
+@supports (height:100dvh){html,body{height:100dvh}}
+.hamb{display:none;padding:5px 10px;font-size:18px;line-height:1}
+#drawerBk{display:none}
+#sheet{display:none}
+@media (max-width:720px){
+  #login form{width:min(300px,90vw)}
+  .hamb{display:inline-block}
+  .top{gap:8px;padding:0 8px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .top b{font-size:13px;white-space:nowrap}
+  .top nav{min-width:0}.top nav a{padding:5px 8px;font-size:12px;white-space:nowrap}
+  .top .sub{display:none}
+  /* peta penuh layar; sidebar menjadi drawer */
+  #app{grid-template-columns:1fr;grid-template-rows:1fr}
+  aside{position:fixed;top:42px;left:0;bottom:0;width:min(88vw,340px);z-index:2500;transform:translateX(-102%);transition:transform .2s ease;box-shadow:4px 0 24px rgba(0,0,0,.4);padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  body.drawer aside{transform:none}
+  body.drawer #drawerBk{display:block;position:fixed;top:42px;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:2400}
+  /* toolbar bawah selebar layar, bisa digeser; kontrol yang sedang aktif tampil paling kiri */
+  #bar{left:8px;right:8px;transform:none;max-width:none;bottom:calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+  #gSess,#gDraw{order:-1}
+  #bHint{top:8px;bottom:auto;left:52px;right:8px;transform:none;max-width:none;text-align:left}
+  /* form (order, titik) = bottom sheet */
+  #sheet{display:block;position:fixed;left:0;right:0;bottom:0;z-index:3000;max-height:72vh;max-height:72dvh;overflow:auto;background:#fff;color:var(--ink);border-radius:14px 14px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.35);padding:14px 14px calc(14px + env(safe-area-inset-bottom));transform:translateY(105%);visibility:hidden;transition:transform .2s ease,visibility 0s .2s}
+  #sheet.open{transform:none;visibility:visible;transition:transform .2s ease}
+  #sheet .box{width:100%}
+  #sheet h2{margin-right:36px}
+  #sheetX{position:absolute;top:6px;right:8px;width:36px;height:36px;min-height:0;padding:0;font-size:24px;line-height:1;border:0;background:transparent;color:#5b706d}
+  #sheet input,#sheet select,#sheet textarea,select,input,textarea{font-size:16px}
+  #sheet .act button,.gpop #vActs button{min-height:42px}
+}
+@media (max-width:480px){.top b{display:none}}
+@media (pointer:coarse){
+  button,select,input:not([type=checkbox]):not([type=radio]){min-height:40px}
+  .area{padding:10px}
+  .leaflet-bar a{width:36px;height:36px;line-height:36px}
+}
 </style>
 </head>
 <body>
@@ -122,11 +158,12 @@ button{padding:5px 9px}
   </form>
 </div>
 
-<header class="top"><b>DIGIMON GIS</b>
+<header class="top"><button id="menuBtn" class="hamb" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="sidebar">&#9776;</button><b>DIGIMON GIS</b>
   <nav><a class="on" href="index.html">Peta Polygon</a><a href="table.html">List Polygon</a></nav>
   <span class="sp"></span><span class="sub" id="who"></span><button id="logout" type="button">Keluar</button></header>
+<div id="drawerBk"></div>
 <div id="app">
-  <aside>
+  <aside id="sidebar">
     <section>
       <h2>Pencarian</h2>
       <label class="sl" for="sLat">Koordinat (latitude, longitude)</label>
@@ -222,11 +259,12 @@ button{padding:5px 9px}
         <button id="editPts" type="button" disabled title="Klik polygon lalu tekan Edit">Geser Titik</button>
       </div>
       <div class="grp" id="gSess" style="display:none"><span class="chip" id="sessTxt"></span><button id="sessForm" type="button" class="on">Selesai</button><button id="sessEnd" type="button">Batal</button></div>
-      <div class="grp" id="gDraw" style="display:none"><button id="cUndo" type="button">Undo titik</button><button id="cCancel" type="button">Batal</button></div>
+      <div class="grp" id="gDraw" style="display:none"><button id="cDone" type="button" class="on">Selesai</button><button id="cUndo" type="button">Undo titik</button><button id="cCancel" type="button">Batal</button></div>
     </div>
   </div>
 </div>
 
+<div id="sheet" class="gpop" role="dialog" aria-label="Panel"><button id="sheetX" type="button" aria-label="Tutup">&times;</button><div id="sheetBody"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -264,7 +302,8 @@ function nmEl(){
 #nm .na button{min-width:88px;padding:8px 14px;border-radius:8px;border:1px solid #c5cfcb;background:#fff;color:#0f2a2c;cursor:pointer;font:inherit}
 #nm .na button.pri{background:#0f2a2c;color:#fff;border-color:#0f2a2c}
 #nm .na button.dng{background:#a02020;color:#fff;border-color:#a02020}
-#nm .na button:focus-visible{outline:2px solid #0e7c7b;outline-offset:2px}`;
+#nm .na button:focus-visible{outline:2px solid #0e7c7b;outline-offset:2px}
+@media (pointer:coarse){#nm .na button{min-height:42px;padding:10px 16px}}`;
   document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'nm';
   el.innerHTML = '<div class="nb" role="alertdialog" aria-modal="true" aria-labelledby="nmt" aria-describedby="nmx"><div class="ni" id="nmi"></div><div class="nt" id="nmt"></div><div class="nx" id="nmx"></div><div class="na" id="nma"></div></div>';
@@ -355,8 +394,8 @@ function ui(){
   const nMove=Object.keys(pendingMoves).length, nAdd=pendingAdds.length;
   $('gSess').style.display=session?'flex':'none'; $('sessTxt').textContent='Edit '+(sp?sp.code:'');
   $('gDraw').style.display=drawing?'flex':'none';
-  $('cUndo').style.display=drawH&&drawH._kind==='poly'?'':'none';
-  const H=drawing?'Klik peta untuk menambah titik. Klik titik pertama untuk menyelesaikan polygon.'
+  $('cUndo').style.display=drawH&&drawH._kind==='poly'?'':'none'; $('cDone').style.display=drawH&&drawH._kind==='poly'?'':'none';
+  const H=drawing?'Ketuk peta untuk menambah titik, lalu tekan Selesai (atau ketuk titik pertama).'
     :mode?`Klik peta untuk menaruh ${LABEL[mode]}. Tekan tombolnya lagi untuk batal.`
     :session?`Mode edit ${sp?sp.code:''}: seret sudut polygon dan titik, atau tambah ODP Plan / Demand.${editPts&&map.getZoom()<15?' Zoom in (min. 15) agar titik bisa digeser.':''}${nMove?' '+nMove+' titik digeser.':''}${nAdd?' '+nAdd+' titik baru.':''} Tekan Selesai untuk menyimpan.`:'';
   $('bHint').textContent=H; $('bHint').style.display=H?'block':'none';
@@ -437,6 +476,7 @@ $('tEditPoly').onclick=()=>{
   ui();
 };
 $('cUndo').onclick=()=>{if(drawH&&drawH.deleteLastVertex)drawH.deleteLastVertex()};
+$('cDone').onclick=()=>{if(drawH&&drawH.completeShape)drawH.completeShape()};
 $('cCancel').onclick=stopDraw;
 $('sessForm').onclick=finishEdit; $('sessEnd').onclick=cancelSession;
 // Input titik ODP Plan / Demand: modal di dalam peta
@@ -449,7 +489,7 @@ function goCoord(){
   if(a&&!b){const m=a.split(/[;\s]+|,\s/).filter(Boolean); if(m.length>=2){a=m[0];b=m[1];$('sLat').value=a;$('sLng').value=b}}   // tempel "lat, lng" di kolom pertama
   const lat=parseFloat(a.replace(',','.')), lng=parseFloat(b.replace(',','.'));
   if(!isFinite(lat)||!isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180) return toast('Koordinat tidak valid. Contoh: -7.2575, 112.7521');
-  const ll=L.latLng(lat,lng); clearSearch();
+  const ll=L.latLng(lat,lng); clearSearch(); closeDrawer();
   sMark=L.circleMarker(ll,{radius:10,color:'#e11d48',weight:3,fillColor:'#e11d48',fillOpacity:.15}).addTo(map)
     .bindPopup(`<div class="pop"><b>Hasil pencarian</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}<br><button onclick="clearSearch()">Hapus penanda</button></div>`);
   map.setView(ll,Math.max(map.getZoom(),17)); sMark.openPopup();
@@ -462,6 +502,7 @@ function findAreas(q){
 }
 function goPoly(id){
   const l=layerOf(id); if(!l) return toast('Polygon tidak ditemukan di peta');
+  closeDrawer();
   $('sRes').innerHTML='';
   const i=listRows.findIndex(x=>x.id===id); if(i>=0){listPage=Math.floor(i/LIST_PER)+1;drawList()}   // daftar ikut ke halaman polygon ini
   map.fitBounds(l.getBounds(),{padding:[40,40],maxZoom:18});
@@ -490,9 +531,19 @@ Object.values(BOX).forEach(b=>L.DomEvent.on(b,'keydown keyup keypress',e=>{   //
 let panel=null, anchorLL=null;
 const busy=()=>!!panel&&(panel.name==='order'||panel.name==='dlg');
 const centerOf=id=>layerOf(id)?.getBounds().getCenter()||map.getCenter();
+const mqMobile=window.matchMedia('(max-width:720px)');
 function showPanel(name,ll,onClose){
   closePanel();
   const box=BOX[name];
+  if(mqMobile.matches){                                      // layar kecil: bottom sheet di luar peta (tidak ada klik tembus)
+    panel={name,sheet:true,onClose};
+    $('sheetBody').appendChild(box); $('sheet').classList.add('open');
+    requestAnimationFrame(()=>{                              // geser peta agar titik tidak tertutup sheet
+      const sh=$('sheet').offsetHeight, H=map.getSize().y, pt=map.latLngToContainerPoint(ll);
+      if(pt.y>H-sh-24) map.panBy([0,pt.y-Math.max(60,(H-sh)/2)],{animate:true});
+    });
+    return;
+  }
   const p=L.popup({className:'gpop',minWidth:240,maxWidth:420,maxHeight:Math.max(220,map.getSize().y-110),offset:[0,-4],
     closeOnClick:false,autoClose:false,keepInView:true,autoPanPaddingTopLeft:[12,12],autoPanPaddingBottomRight:[12,12]});
   panel={name,p,onClose};
@@ -504,8 +555,23 @@ function showPanel(name,ll,onClose){
   });
   p.setLatLng(ll).setContent(box).openOn(map);
 }
-function closePanel(){ if(panel) map.closePopup(panel.p) }
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel&&!drawing)closePanel()});
+function closePanel(){
+  if(!panel) return;
+  if(panel.sheet){
+    const c=panel, box=BOX[c.name]; panel=null;
+    $('sheet').classList.remove('open'); HOME.get(box).appendChild(box);
+    if(c.onClose) c.onClose();
+    return;
+  }
+  map.closePopup(panel.p);
+}
+$('sheetX').onclick=closePanel;
+// Drawer sidebar (layar kecil)
+function closeDrawer(){document.body.classList.remove('drawer');$('menuBtn').setAttribute('aria-expanded','false')}
+$('menuBtn').onclick=()=>{const o=document.body.classList.toggle('drawer');$('menuBtn').setAttribute('aria-expanded',String(o))};
+$('drawerBk').onclick=closeDrawer;
+mqMobile.addEventListener('change',()=>{closeDrawer();if(panel)closePanel();map.invalidateSize()});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(document.body.classList.contains('drawer'))closeDrawer();else if(panel&&!drawing)closePanel()});
 // ---- ID otomatis + alamat otomatis untuk ODP Plan / Demand ----
 const genCode = kind => (kind === 'odp' ? 'ODP' : 'DMD') + String(Math.floor(100000 + Math.random() * 900000));
 // Alamat dari koordinat: OpenStreetMap Nominatim (maks. 1 permintaan per detik, hasil disimpan di cache)
@@ -661,7 +727,7 @@ function drawList(){
   listRows.slice((listPage-1)*LIST_PER,listPage*LIST_PER).forEach(p=>{
     const d=document.createElement('div');d.className='area';
     d.innerHTML=`${esc(p.name)}<div style="margin:3px 0;display:flex;flex-wrap:wrap;gap:3px">${badges(p)}</div><small>${esc(p.code||'')} ${p.sto_code?'· '+esc(p.sto_code):'· STO belum dipilih'}<br>${p.customer} pelanggan, ${p.odp} ODP, ${p.prospect} demand</small>`;
-    d.onclick=()=>{areas.eachLayer(l=>{if(l.feature.properties.id===p.id)map.fitBounds(l.getBounds())});openView(p.id)};
+    d.onclick=()=>{closeDrawer();areas.eachLayer(l=>{if(l.feature.properties.id===p.id)map.fitBounds(l.getBounds())});openView(p.id)};
     box.appendChild(d);
   });
   pg.innerHTML=pages>1
