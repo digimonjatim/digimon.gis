@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>View Design - DIGIMON GIS</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -37,7 +37,7 @@ body{display:flex;flex-direction:column}
 .tw th{border:1px solid #e3e9e6;padding:3px 6px;background:#f2f4f1;font-size:11px;text-align:left;white-space:nowrap}
 #boqCard details{border-top:1px solid #eef2f0;padding-top:8px;margin-top:10px}
 #fm{position:fixed;inset:0;background:rgba(15,42,44,.55);display:none;align-items:center;justify-content:center;z-index:15000;padding:16px}
-.fb{background:#fff;border-radius:12px;width:min(460px,100%);max-height:92vh;overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.fb{background:#fff;border-radius:12px;width:min(460px,100%);max-height:92vh;max-height:92dvh;overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
 .fb h3{margin:0 0 2px;font-size:16px}
 .fsub{color:var(--mute);font-size:12px;margin-bottom:12px}
 .fbody{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -80,12 +80,26 @@ details summary{cursor:pointer;font-weight:600;font-size:13px}
 .leg{padding:8px 10px;top:118px;font-size:11.5px}.leg label{margin:3px 0}
 .bq td{padding:4px 0}
 .fb{padding:14px}.fbody{gap:8px}.fact{margin-top:12px}
+/* ---- Responsif & mobile ---- */
+@supports (height:100dvh){html,body{height:100dvh}}
+#legT{display:none}
+@media (max-width:900px){
+  body{height:auto}
+  .wrap{grid-template-rows:minmax(300px,55vh) auto}
+  #legT{display:block;position:absolute;left:10px;top:118px;z-index:1000;padding:5px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25);font-size:12px}
+  .leg{display:none;top:158px;width:min(220px,70vw)}
+  .leg.show{display:block}
+  #foot{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+}
+@supports (height:100dvh){@media (max-width:900px){.wrap{grid-template-rows:minmax(300px,55dvh) auto}}}
+@media (max-width:480px){.fbody{grid-template-columns:1fr}#fm{align-items:flex-end;padding:0}.fb{border-radius:14px 14px 0 0;width:100%;padding-bottom:calc(14px + env(safe-area-inset-bottom))}}
+@media (pointer:coarse){#foot button{min-height:42px}}
 </style>
 </head>
 <body>
 <div id="hdr"></div>
 <div class="wrap">
-  <div id="mapbox"><div id="map"></div><div class="leg" id="leg"></div></div>
+  <div id="mapbox"><div id="map"></div><button id="legT" type="button" aria-label="Tampilkan layer">Layer</button><div class="leg" id="leg"></div></div>
   <aside class="sidewrap"><div id="side"></div><div id="foot"></div></aside>
 </div>
 <div id="fm" role="dialog" aria-modal="true" aria-labelledby="fmT">
@@ -254,7 +268,7 @@ async function openLog(){
     const from = (lp - 1) * LOG_PER;
     const body = rows.slice(from, from + LOG_PER).map((r, j) => { const i = from + j;
       return `<tr><td>${esc(fmt(r.at))}</td><td>${r.code ? badge(r.code) : esc(r.raw)}</td><td>${i ? durTxt(r.at - rows[i - 1].at) : '-'}</td></tr>`; }).join('');
-    $('fmB').innerHTML = `<div class="full"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
+    $('fmB').innerHTML = `<div class="full" style="overflow-x:auto"><table class="lgt"><tr><th>Tanggal</th><th>Status Order</th><th>Durasi</th></tr>${body}</table></div>
       <div class="full lgp">${pages > 1
         ? `<button id="lgPrev" type="button"${lp <= 1 ? ' disabled' : ''}>&lsaquo; Sebelumnya</button><span>Hal ${lp} / ${pages} · ${rows.length} entri</span><button id="lgNext" type="button"${lp >= pages ? ' disabled' : ''}>Berikutnya &rsaquo;</button>`
         : `<span>${rows.length} entri</span>`}</div>
@@ -346,6 +360,7 @@ const kv = (l, v, full) => `<div${full?' class="full"':''}><small>${l}</small><d
     setTimeout(() => $(id).onchange = e => e.target.checked ? map.addLayer(layer) : map.removeLayer(layer));
     return `<label><input type="checkbox" id="${id}" checked><span class="dot" style="background:${color}"></span>${label}<span class="n">${n}</span></label>`;
   };
+  $('legT').onclick = () => $('leg').classList.toggle('show');
   $('leg').innerHTML = '<h4>Titik dalam polygon</h4>' +
     Object.keys(groups).map(k => leg(groups[k], COL[k], LABEL[k], cnt[k])).join('') +
     '<h4>Objek desain (KML)</h4>' +
