@@ -42,7 +42,8 @@ function nmEl(){
 #nm .na button{min-width:88px;padding:8px 14px;border-radius:8px;border:1px solid #c5cfcb;background:#fff;color:#0f2a2c;cursor:pointer;font:inherit}
 #nm .na button.pri{background:#0f2a2c;color:#fff;border-color:#0f2a2c}
 #nm .na button.dng{background:#a02020;color:#fff;border-color:#a02020}
-#nm .na button:focus-visible{outline:2px solid #0e7c7b;outline-offset:2px}`;
+#nm .na button:focus-visible{outline:2px solid #0e7c7b;outline-offset:2px}
+@media (pointer:coarse){#nm .na button{min-height:42px;padding:10px 16px}}`;
   document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'nm';
   el.innerHTML = '<div class="nb" role="alertdialog" aria-modal="true" aria-labelledby="nmt" aria-describedby="nmx"><div class="ni" id="nmi"></div><div class="nt" id="nmt"></div><div class="nx" id="nmx"></div><div class="na" id="nma"></div></div>';
