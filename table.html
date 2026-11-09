@@ -76,7 +76,21 @@ th{padding:7px 8px}td{padding:6px 8px}
 <div id="hdr"></div>
 <main>
   <h2 class="ptitle">List Polygon</h2>
-  <section class="card">
+  <section class="dash">
+    <div class="mute" style="font-size:11px;margin-bottom:6px">Dashboard mengikuti filter di bawah. Klik badge status untuk memfilter tabel.</div>
+    <div class="badges" id="badges"></div>
+    <div class="drow">
+      <div class="card dc"><h3>Status Order</h3><div class="ch"><canvas id="chStatus"></canvas></div></div>
+      <div class="card dc"><h3>Total Order per District</h3><div class="ch" id="chDistBox"><canvas id="chDist"></canvas></div></div>
+    </div>
+    <div class="trhead"><h3>Tren Tanggal</h3><label>Per <select id="trMode"><option value="auto">Otomatis</option><option value="day">Hari</option><option value="week">Minggu</option><option value="month">Bulan</option></select></label></div>
+    <div class="drow3">
+      <div class="card dc"><h3>Submitted Polygon <span id="trN1"></span></h3><div class="ch s"><canvas id="chT1"></canvas></div></div>
+      <div class="card dc"><h3>Design Complete <span id="trN2"></span></h3><div class="ch s"><canvas id="chT2"></canvas></div></div>
+      <div class="card dc"><h3>DSI Complete <span id="trN3"></span></h3><div class="ch s"><canvas id="chT3"></canvas></div></div>
+    </div>
+  </section>
+  <section class="card" id="filterCard">
     <div class="grid4">
       <div><label for="fReg">Regional</label><select id="fReg"></select></div>
       <div><label for="fBranch">Branch</label><select id="fBranch"></select></div>
@@ -99,20 +113,6 @@ th{padding:7px 8px}td{padding:6px 8px}
       <span class="sp"></span>
       <span id="cnt" class="mute"></span>
       <button id="csv" type="button">Unduh CSV</button>
-    </div>
-  </section>
-  <section class="dash">
-    <div class="mute" style="font-size:11px;margin-bottom:6px">Dashboard mengikuti filter di atas. Klik badge status untuk memfilter tabel.</div>
-    <div class="badges" id="badges"></div>
-    <div class="drow">
-      <div class="card dc"><h3>Status Order</h3><div class="ch"><canvas id="chStatus"></canvas></div></div>
-      <div class="card dc"><h3>Total Order per District</h3><div class="ch" id="chDistBox"><canvas id="chDist"></canvas></div></div>
-    </div>
-    <div class="trhead"><h3>Tren Tanggal</h3><label>Per <select id="trMode"><option value="auto">Otomatis</option><option value="day">Hari</option><option value="week">Minggu</option><option value="month">Bulan</option></select></label></div>
-    <div class="drow3">
-      <div class="card dc"><h3>Submitted Polygon <span id="trN1"></span></h3><div class="ch s"><canvas id="chT1"></canvas></div></div>
-      <div class="card dc"><h3>Design Complete <span id="trN2"></span></h3><div class="ch s"><canvas id="chT2"></canvas></div></div>
-      <div class="card dc"><h3>DSI Complete <span id="trN3"></span></h3><div class="ch s"><canvas id="chT3"></canvas></div></div>
     </div>
   </section>
   <section class="card" id="tblCard">
