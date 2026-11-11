@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Update Data - DIGIMON GIS</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=7">
+<style>
+main{padding:10px 12px;max-width:1600px;margin:0 auto}
+.ptitle{margin:0 0 8px;font-size:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+.card h3{margin:0 0 6px;font-size:12px;color:var(--acc)}
+.note{font-size:12px;color:var(--mute);margin:0 0 8px;line-height:1.5}
+.frow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.frow input[type=file]{flex:1;min-width:220px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px}
+.stat{padding:7px 10px;border:1px solid var(--line);border-left:4px solid var(--c,#64748b);border-radius:10px;background:#fff}
+.stat small{display:block;font-size:11px;color:var(--mute)}
+.stat b{font-size:19px;line-height:1.15;color:var(--c,#0f2a2c)}
+.warn{font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin-bottom:6px;word-break:break-word}
+.err{color:#991b1b;background:#fef2f2;border-color:#fecaca}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.tw{overflow:auto;max-height:60vh}
+table{border-collapse:collapse;font-size:12px;width:max-content;min-width:100%}
+th{position:sticky;top:0;background:#fff;text-align:left;font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:var(--mute);padding:7px 8px;border-bottom:2px solid var(--line);white-space:nowrap}
+td{padding:5px 8px;border-bottom:1px solid #e9eeeb;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+th.sv{color:#0e7c7b}
+#progress{font-size:12px;color:var(--mute)}
+@media (max-width:700px){main{padding:8px}.frow input[type=file]{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+<div id="hdr"></div>
+<main>
+  <h2 class="ptitle">Update Data</h2>
+  <section class="card">
+    <h3>Import Data JPP Cluster</h3>
+    <p class="note">Pilih file CSV JPP Cluster (48 kolom). Sistem hanya mengambil 28 kolom yang dibutuhkan, memakai satu baris per <b>Cluster ID</b> (bila ada duplikat, diambil yang <b>Diperbarui Pada</b>-nya paling baru), dan melengkapi Nama STO, Area, Regional, Branch, Cluster, WOK, District, Sub District, serta Kabupaten/Kota dari data STO di database.</p>
+    <div class="frow"><input type="file" id="fFile" accept=".csv,text/csv"><button id="bReset" type="button">Reset</button></div>
+    <div id="roleNote" class="warn" style="display:none;margin-top:8px"></div>
+    <div id="dbInfo" class="note" style="margin:8px 0 0"></div>
+  </section>
+  <section id="resSec" style="display:none">
+    <div class="stats" id="stats"></div>
+    <div id="warns"></div>
+    <div class="card">
+      <h3>Pratinjau data <span id="prevInfo" class="mute" style="font-weight:400"></span></h3>
+      <div class="tw"><table><thead id="pHead"></thead><tbody id="pBody"></tbody></table></div>
+      <div class="acts">
+        <button id="bSave" type="button" class="pri">Simpan ke Database</button>
+        <button id="bCsv" type="button">Unduh CSV (28 kolom)</button>
+        <span id="progress"></span>
+      </div>
+    </div>
+    <div id="done"></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="common.js?v=7"></script>
+<script>
+// ---- 28 kolom hasil, sesuai urutan yang diminta. src: kolom CSV (lurus) atau STO (diambil dari tabel sto) ----
+const OUT = [
+  {l:'Dibuat', k:'dibuat', t:'ts'}, {l:'Cluster ID', k:'cluster_id'}, {l:'Nama', k:'nama'},
+  {l:'Latitude', k:'latitude', t:'lat'}, {l:'Longitude', k:'longitude', t:'lng'}, {l:'STO', k:'sto'},
+  {l:'Status Order', k:'status_order'}, {l:'iHLD LoP ID', k:'ihld_lop_id'}, {l:'Nama Proyek', k:'nama_proyek'},
+  {l:'Tipe Desain', k:'tipe_desain'}, {l:'Total BOQ', k:'total_boq', t:'num'}, {l:'Capex per Port', k:'capex_per_port', t:'num'},
+  {l:'ODP Total', k:'odp_total', t:'num'}, {l:'Total Port', k:'total_port', t:'num'}, {l:'Jenis Program', k:'jenis_program'},
+  {l:'Batch Program', k:'batch_program'}, {l:'STO', k:'sto', dup:true},
+  {l:'Nama STO', k:'nama_sto', from:'sto'}, {l:'Area', k:'area', from:'sto'}, {l:'Regional', k:'regional', from:'sto'},
+  {l:'Branch', k:'branch', from:'sto'}, {l:'Cluster', k:'cluster', from:'sto'}, {l:'WOK', k:'wok', from:'sto'},
+  {l:'District', k:'district', from:'sto'}, {l:'Sub District', k:'sub_district', from:'sto'}, {l:'Kabupaten/Kota', k:'kabupaten_kota', from:'sto'},
+  {l:'Status Proyek', k:'status_proyek'}, {l:'Diperbarui Pada', k:'diperbarui_pada', t:'ts'}
+];
+const SRC = OUT.filter(o => !o.from && !o.dup);          // 18 kolom yang dibaca dari CSV
+const DB_KEYS = SRC.map(o => o.k);                       // kolom tabel jpp_cluster (STO disimpan satu kali)
+const normH = h => String(h ?? '').replace(/^\ufeff/, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const HDR = {};                                          // nama kolom CSV (dinormalisasi) -> kunci
+SRC.forEach(o => { HDR[normH(o.l)] = o.k; });
+Object.assign(HDR, {lat:'latitude', lng:'longitude', long:'longitude', ihldlopid:'ihld_lop_id', ihldlop:'ihld_lop_id', clusterid:'cluster_id'});
+
+function numVal(v){                                      // 3.089.508 | 12,5 | Rp 932.525 | 1234.5
+  let s = String(v ?? '').replace(/rp|idr/ig, '').replace(/\s/g, '');
+  if(!s) return null;
+  if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  else if(/^-?\d+,\d+$/.test(s)) s = s.replace(',', '.');
+  else s = s.replace(/,/g, '');
+  const n = Number(s); return isFinite(n) ? n : null;
+}
+function coordVal(v, max){                               // koordinat: titik/koma = desimal, bukan pemisah ribuan
+  const s = String(v ?? '').trim().replace(',', '.'); if(!s) return null;
+  const n = Number(s); return isFinite(n) && Math.abs(n) <= max ? n : null;
+}
+function tsVal(v){                                       // ISO, "2026-10-02 11:15:36", atau "02/10/2026 11:15"
+  let s = String(v ?? '').trim(); if(!s) return null;
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  let d;
+  if(m) d = new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  else d = new Date(s.replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, '$1T$2'));
+  return isNaN(d) ? null : d.toISOString();
+}
+const tsMs = iso => iso ? Date.parse(iso) : -Infinity;
+
+// rows: array of arrays (baris pertama = header). sto: Map(KODE -> baris sto). Mengembalikan {records, stats}
+function processRows(rows, sto){
+  const headers = rows[0].map(h => String(h ?? '').replace(/^\ufeff/, '').trim());
+  const idx = {};
+  headers.forEach((h, i) => { const k = HDR[normH(h)]; if(k && !(k in idx)) idx[k] = i; });      // kolom ganda: ambil yang pertama
+  const stats = {fileRows:0, fileCols:headers.length, noId:0, dup:0, rowsNoSto:0, stoMissing:new Set(), bad:{}, missingCols:SRC.filter(o => !(o.k in idx)).map(o => o.l), headers};
+  if(!('cluster_id' in idx)) return {records:[], stats, fatal:true};
+  const best = new Map();
+  rows.slice(1).forEach(r => {
+    if(!r.some(c => String(c ?? '').trim() !== '')) return;
+    stats.fileRows++;
+    const rec = {};
+    SRC.forEach(o => {
+      const raw = (o.k in idx) ? String(r[idx[o.k]] ?? '').trim() : '';
+      let val = raw === '' ? null : raw;
+      if(val !== null && o.t){
+        val = o.t === 'num' ? numVal(raw) : o.t === 'lat' ? coordVal(raw, 90) : o.t === 'lng' ? coordVal(raw, 180) : tsVal(raw);
+        if(val === null) stats.bad[o.l] = (stats.bad[o.l] || 0) + 1;
+      }
+      rec[o.k] = val;
+    });
+    if(!rec.cluster_id){ stats.noId++; return; }
+    const prev = best.get(rec.cluster_id);
+    if(!prev) best.set(rec.cluster_id, rec);
+    else { stats.dup++; if(tsMs(rec.diperbarui_pada) > tsMs(prev.diperbarui_pada)) best.set(rec.cluster_id, rec); }   // duplikat: ambil yang terbaru
+  });
+  const records = [...best.values()];
+  records.forEach(rec => {                                // lengkapi data wilayah dari tabel sto
+    const code = String(rec.sto || '').trim().toUpperCase(), s = sto.get(code);
+    rec._sto = s || null;
+    if(!s){ stats.rowsNoSto++; if(code) stats.stoMissing.add(code); }
+  });
+  return {records, stats};
+}
+
+// ---- tampilan ----
+let STO = new Map(), CAN = false, PARSED = null;
+const cell = (rec, o) => {
+  const v = o.from ? (rec._sto ? rec._sto[o.k] : null) : rec[o.k];
+  if(v === null || v === undefined || v === '') return '<span class="mute">-</span>';
+  if(o.t === 'ts') return esc(fmt(v));
+  if(o.t === 'num') return esc(Number(v).toLocaleString('id-ID', {maximumFractionDigits:2}));
+  return esc(v);
+};
+function showResult(res, fileName){
+  const {records, stats} = res;
+  $('resSec').style.display = 'block'; $('done').innerHTML = ''; $('progress').textContent = '';
+  const st = (l, v, c) => `<div class="stat" style="--c:${c}"><small>${l}</small><b>${Number(v).toLocaleString('id-ID')}</b></div>`;
+  $('stats').innerHTML = st('Baris di file', stats.fileRows, '#0f2a2c') + st('Kolom di file', stats.fileCols, '#64748b') +
+    st('Cluster ID unik (disimpan)', records.length, '#15803d') + st('Duplikat dibuang', stats.dup, '#d97706') +
+    st('Tanpa Cluster ID (dilewati)', stats.noId, '#b91c1c') + st('STO tidak ditemukan', stats.rowsNoSto, '#7c3aed');
+  const w = [];
+  if(res.fatal) w.push(['err', `Kolom <b>Cluster ID</b> tidak ditemukan di file. Kolom yang terbaca: ${esc(stats.headers.slice(0, 20).join(', '))}${stats.headers.length > 20 ? ', ...' : ''}.`]);
+  if(!res.fatal && stats.missingCols.length) w.push(['', `Kolom berikut tidak ada di file dan akan kosong: ${esc(stats.missingCols.join(', '))}.`]);
+  const bad = Object.entries(stats.bad).map(([k, n]) => `${esc(k)} (${n} baris)`);
+  if(bad.length) w.push(['', `Nilai tidak terbaca dan disimpan kosong: ${bad.join(', ')}.`]);
+  if(stats.stoMissing.size) w.push(['', `Kode STO belum ada di database STO: ${esc([...stats.stoMissing].slice(0, 15).join(', '))}${stats.stoMissing.size > 15 ? ', ...' : ''}. Kolom wilayahnya dikosongkan.`]);
+  $('warns').innerHTML = w.map(([c, t]) => `<div class="warn ${c}">${t}</div>`).join('');
+  $('pHead').innerHTML = '<tr>' + OUT.map(o => `<th${o.from ? ' class="sv"' : ''}>${esc(o.l)}</th>`).join('') + '</tr>';
+  const show = records.slice(0, 20);
+  $('pBody').innerHTML = show.map(r => '<tr>' + OUT.map(o => `<td>${cell(r, o)}</td>`).join('') + '</tr>').join('');
+  $('prevInfo').textContent = `· ${fileName} · menampilkan ${show.length} dari ${records.length} data. Kolom hijau diambil dari data STO.`;
+  $('bSave').disabled = res.fatal || !records.length || !CAN;
+  $('bCsv').disabled = !records.length;
+}
+function readFile(f){
+  $('done').innerHTML = '';
+  Papa.parse(f, {header:false, skipEmptyLines:'greedy', complete: r => {
+    if(!r.data.length || r.data.length < 2) return toast('File kosong atau tidak memiliki baris data.', 'warn');
+    PARSED = processRows(r.data, STO); PARSED.file = f.name;
+    showResult(PARSED, f.name);
+  }, error: e => toast('Gagal membaca CSV: ' + e.message, 'error')});
+}
+const toDb = rec => { const o = {}; DB_KEYS.forEach(k => { o[k] = rec[k]; }); return o; };
+async function dbInfo(){
+  const c = await sb.from('jpp_cluster').select('cluster_id', {count:'exact', head:true});
+  if(c.error){ $('dbInfo').innerHTML = /jpp_cluster|schema cache|does not exist/i.test(c.error.message) ? 'Tabel <b>jpp_cluster</b> belum ada. Jalankan migrasi <b>011_jpp_cluster.sql</b> di Supabase.' : esc(c.error.message); return; }
+  const l = await sb.from('jpp_cluster').select('imported_at').order('imported_at', {ascending:false}).limit(1);
+  $('dbInfo').innerHTML = `Data tersimpan: <b>${(c.count || 0).toLocaleString('id-ID')}</b> cluster${l.data && l.data[0] ? ' · impor terakhir ' + esc(fmt(l.data[0].imported_at)) : ''}.`;
+}
+$('fFile').onchange = e => { const f = e.target.files[0]; if(f) readFile(f); };
+$('bReset').onclick = () => { $('fFile').value = ''; PARSED = null; $('resSec').style.display = 'none'; };
+$('bCsv').onclick = () => {
+  if(!PARSED) return;
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const val = (r, o) => o.from ? (r._sto ? r._sto[o.k] : '') : r[o.k];
+  const csv = [OUT.map(o => q(o.l)).join(','), ...PARSED.records.map(r => OUT.map(o => q(val(r, o))).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], {type:'text/csv'}));
+  a.download = 'jpp-cluster-28kolom.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('bSave').onclick = async () => {
+  if(!PARSED || !CAN || PARSED.fatal) return;
+  const rows = PARSED.records;
+  if(!await ask(`Simpan ${rows.length.toLocaleString('id-ID')} data JPP Cluster ke database? Cluster ID yang sudah ada akan diperbarui.`, 'Simpan')) return;
+  $('bSave').disabled = true; $('done').innerHTML = '';
+  try{
+    let existing = 0;
+    const ids = rows.map(r => r.cluster_id);
+    for(let i = 0; i < ids.length; i += 100){
+      $('progress').textContent = `Memeriksa data lama ${Math.min(i + 100, ids.length)} / ${ids.length}...`;
+      const {data, error} = await sb.from('jpp_cluster').select('cluster_id').in('cluster_id', ids.slice(i, i + 100));
+      if(error) throw new Error(error.message);
+      existing += data.length;
+    }
+    const now = new Date().toISOString();
+    for(let i = 0; i < rows.length; i += 500){
+      $('progress').textContent = `Menyimpan ${Math.min(i + 500, rows.length)} / ${rows.length}...`;
+      const chunk = rows.slice(i, i + 500).map(r => ({...toDb(r), imported_at:now}));
+      const {error} = await sb.from('jpp_cluster').upsert(chunk, {onConflict:'cluster_id'});
+      if(error) throw new Error(error.message);
+    }
+    $('progress').textContent = '';
+    $('done').innerHTML = `<div class="card"><h3>Impor selesai</h3><div class="stats" style="margin:0">
+      <div class="stat" style="--c:#15803d"><small>Data baru</small><b>${(rows.length - existing).toLocaleString('id-ID')}</b></div>
+      <div class="stat" style="--c:#2563eb"><small>Data diperbarui</small><b>${existing.toLocaleString('id-ID')}</b></div>
+      <div class="stat" style="--c:#0f2a2c"><small>Total diproses</small><b>${rows.length.toLocaleString('id-ID')}</b></div></div></div>`;
+    toast(`Impor selesai: ${rows.length - existing} baru, ${existing} diperbarui`);
+    dbInfo();
+  }catch(err){ $('progress').textContent = ''; toast(err.message, 'error'); }
+  finally{ $('bSave').disabled = false; }
+};
+
+(async () => {
+  const role = await initPage('update'); if(!role) return;
+  CAN = role === 'planner' || role === 'admin';
+  if(!CAN){
+    $('fFile').disabled = true;
+    $('roleNote').style.display = 'block'; $('roleNote').textContent = 'Hanya planner atau admin yang dapat mengimpor data.';
+  }
+  const {data, error} = await sb.from('sto').select('*');
+  if(error) toast('Gagal memuat data STO: ' + error.message, 'error');
+  else STO = new Map(data.map(s => [String(s.sto).trim().toUpperCase(), s]));
+  dbInfo();
+})().catch(err => { console.error(err); toast(err.message, 'error'); });
+</script>
+</body>
+</html>
