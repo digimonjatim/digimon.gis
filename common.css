@@ -25,7 +25,7 @@ button,.btn{padding:5px 10px}
 .st{padding:1px 8px;font-size:10.5px}
 /* ---- Responsif & mobile ---- */
 @supports (height:100dvh){html,body{height:100dvh}}
-.top nav{min-width:0}
+.top nav{min-width:0;overflow-x:auto}
 @media (max-width:600px){
   .top{gap:8px;padding:0 8px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
   .top b{font-size:13px;white-space:nowrap}
