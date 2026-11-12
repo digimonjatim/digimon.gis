@@ -81,7 +81,7 @@ function toast(msg, type){ notify(msg, type); }   // nama lama tetap dipakai di 
 // Header + cek login. Mengembalikan peran user, atau null (sudah dialihkan / tanpa peran).
 async function initPage(active){
   $('hdr').innerHTML = `<header class="top"><b>DIGIMON GIS</b>
-    <nav><a href="index.html" class="${active==='map'?'on':''}">Peta Polygon</a><a href="table.html" class="${active==='table'?'on':''}">List Polygon</a></nav>
+    <nav><a href="index.html" class="${active==='map'?'on':''}">Peta Polygon</a><a href="table.html" class="${active==='table'?'on':''}">List Polygon</a><a href="update.html" class="${active==='update'?'on':''}">Update Data</a></nav>
     <span class="sp"></span><span class="sub" id="who"></span>
     <button id="out" type="button">Keluar</button></header>`;
   $('out').onclick = async () => { await sb.auth.signOut(); location.href = 'index.html'; };
