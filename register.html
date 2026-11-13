@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#07192F">
+<title>Register — DIGIMON</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--brand:#2C3979;--brand-d:#212c5e;--bg:#f9fafb;--card:#fff;--ink:#101828;--mut:#667085;--line:#d0d5dd;--ok:#12b76a;--err:#d92d20}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg);color:var(--ink);font:400 15px/1.5 "Outfit",system-ui,sans-serif}
+  .card{width:100%;max-width:460px;background:var(--card);border:1px solid #e4e7ec;border-radius:16px;padding:28px;box-shadow:0 12px 16px -4px rgba(16,24,40,.08)}
+  h1{margin:0 0 4px;font-size:22px;color:var(--brand)} .sub{margin:0 0 20px;color:var(--mut);font-size:14px}
+  .steps{display:flex;gap:8px;margin-bottom:22px}
+  .st{flex:1;font-size:12px;color:var(--mut);border-top:3px solid #e4e7ec;padding-top:6px}
+  .st.on{color:var(--brand);border-color:var(--brand);font-weight:600} .st.done{border-color:var(--ok);color:var(--ok)}
+  label{display:block;margin:14px 0 6px;font-size:13px;font-weight:500}
+  input,select{width:100%;height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink)}
+  input:focus,select:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 4px rgba(44,57,121,.12)}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;margin-top:20px;border:0;border-radius:10px;background:var(--brand);color:#fff;font:600 15px "Outfit",sans-serif;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--brand-d)} .btn:disabled{opacity:.6;cursor:wait}
+  .btn.sec{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  .hide{display:none!important} .msg{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:13px;background:#fef3f2;color:var(--err)}
+  .msg.ok{background:#ecfdf3;color:#027a48}
+  .otp{letter-spacing:.5em;text-align:center;font-size:22px;font-weight:600}
+  .center{text-align:center} .big{font-size:42px;margin:8px 0}
+  .pill{display:inline-block;padding:4px 12px;border-radius:99px;background:#fffaeb;color:#b54708;font-weight:600;font-size:13px}
+  .foot{margin-top:18px;text-align:center;font-size:13px;color:var(--mut)} .foot a{color:var(--brand);font-weight:600}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Daftar Akun DIGIMON</h1>
+  <p class="sub">Digital Monitoring — INFRANEXIA</p>
+  <div class="steps"><div class="st on" id="s1">1. Data Akun</div><div class="st" id="s2">2. Telegram</div><div class="st" id="s3">3. Approval</div></div>
+
+  <!-- STEP 1 -->
+  <section id="p1">
+    <label for="company">Company Name</label>
+    <select id="company"><option value="">— Pilih —</option>
+      <option>PT. TELKOM AKSES</option><option>MITRA</option><option>TSEL</option><option>TELKOM GROUP</option><option>TIF</option></select>
+    <div id="roleWrap" class="hide"><label for="role">Role Access</label>
+      <select id="role"><option value="">— Pilih —</option><option>SDI</option><option>CONSTRUCTION</option><option>OPERATION</option></select></div>
+    <label for="fullName">Full Name</label><input id="fullName" autocomplete="name">
+    <label for="nik">NIK Employee</label><input id="nik" autocomplete="off">
+    <label for="email">Email</label><input id="email" type="email" autocomplete="email">
+    <label for="pass">Password</label><input id="pass" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter">
+    <label for="pass2">Konfirmasi Password</label><input id="pass2" type="password" autocomplete="new-password">
+    <div id="e1" class="msg hide"></div>
+    <button class="btn" id="b1">Lanjut</button>
+    <div class="foot">Sudah punya akun? <a href="login.html">Masuk</a></div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section id="p2" class="hide">
+    <p class="sub">Hubungkan Telegram untuk verifikasi. Buka bot, tekan <b>Start</b>, lalu tombol <b>Activation</b> — bot akan mengirim OTP 6 digit.</p>
+    <a class="btn" id="botLink" target="_blank" rel="noopener">Buka Bot Telegram</a>
+    <div id="tgState" class="msg hide ok"></div>
+    <label for="otp">Kode OTP</label>
+    <input id="otp" class="otp" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code">
+    <div id="e2" class="msg hide"></div>
+    <button class="btn" id="b2">Verifikasi OTP</button>
+  </section>
+
+  <!-- STEP 3 -->
+  <section id="p3" class="hide center">
+    <div class="big" id="ico">⏳</div>
+    <span class="pill" id="stPill">Pending</span>
+    <p id="stTxt" class="sub" style="margin-top:14px">Pendaftaran kamu sudah diterima. Administrator akan meninjau dan menentukan status akunmu. Kamu juga akan dikabari lewat Telegram.</p>
+    <a class="btn hide" id="toLogin" href="login.html">Ke Halaman Login</a>
+  </section>
+</main>
+
+<script>
+const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycby2i2ouNqZPI5il8_eNaIOzSTR6YU7Vmhc-A63IfS7F85Xb1n1pcRCrxfOQTz4vwwrh/exec';
+const $ = id => document.getElementById(id);
+let reqId = null, pollTg = null, pollSt = null;
+
+async function api(fn, ...args) {
+  try {
+    const r = await fetch(GAS_EXEC_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn, args }) });
+    const j = await r.json();
+    if (j && j.__routerError) return { success: false, message: j.message };
+    return j;
+  } catch (e) { return { success: false, message: 'Koneksi gagal. Coba lagi.' }; }
+}
+const show = (el, t, ok) => { el.textContent = t; el.classList.remove('hide'); el.classList.toggle('ok', !!ok); };
+const save = v => { try { v ? sessionStorage.setItem('dgm_req', v) : sessionStorage.removeItem('dgm_req'); } catch (e) {} };
+
+function goStep(n) {
+  [1, 2, 3].forEach(i => {
+    $('p' + i).classList.toggle('hide', i !== n);
+    $('s' + i).className = 'st' + (i === n ? ' on' : i < n ? ' done' : '');
+  });
+  clearInterval(pollTg); clearInterval(pollSt);
+  if (n === 2) { pollTg = setInterval(checkTg, 3000); checkTg(); }
+  if (n === 3) { pollSt = setInterval(checkStatus, 6000); checkStatus(); }
+}
+
+$('company').onchange = () => {
+  const ta = $('company').value === 'PT. TELKOM AKSES';
+  $('roleWrap').classList.toggle('hide', !ta); if (!ta) $('role').value = '';
+};
+
+$('b1').onclick = async () => {
+  const d = { company: $('company').value, role: $('role').value, fullName: $('fullName').value.trim(),
+    nik: $('nik').value.trim(), email: $('email').value.trim(), password: $('pass').value };
+  const e = $('e1'); e.classList.add('hide');
+  if (!d.company) return show(e, 'Pilih Company Name.');
+  if (d.company === 'PT. TELKOM AKSES' && !d.role) return show(e, 'Pilih Role Access.');
+  if (d.fullName.length < 3) return show(e, 'Full Name minimal 3 karakter.');
+  if (!d.nik) return show(e, 'NIK Employee wajib diisi.');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) return show(e, 'Format Email tidak valid.');
+  if (d.password.length < 8) return show(e, 'Password minimal 8 karakter.');
+  if (d.password !== $('pass2').value) return show(e, 'Konfirmasi password tidak sama.');
+  $('b1').disabled = true; $('b1').textContent = 'Memproses…';
+  const r = await api('registerBegin', d);
+  $('b1').disabled = false; $('b1').textContent = 'Lanjut';
+  if (!r.success) return show(e, r.message || 'Gagal mendaftar.');
+  reqId = r.requestId; save(reqId + '|' + r.botLink); $('botLink').href = r.botLink; goStep(2);
+};
+
+async function checkTg() {
+  const r = await api('registerCheckTelegram', reqId);
+  if (r.success && r.linked) show($('tgState'), '✓ Telegram terhubung: @' + r.username + (r.otpSent ? ' — OTP sudah dikirim.' : ''), true);
+}
+
+$('otp').oninput = e => e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+$('b2').onclick = async () => {
+  const e = $('e2'); e.classList.add('hide');
+  if ($('otp').value.length !== 6) return show(e, 'Masukkan 6 digit OTP.');
+  $('b2').disabled = true;
+  const r = await api('registerVerifyOtp', reqId, $('otp').value);
+  $('b2').disabled = false;
+  if (!r.success) return show(e, r.message || 'OTP salah.');
+  goStep(3);
+};
+
+const ST = { Pending: ['⏳', 'Menunggu persetujuan administrator.'], Active: ['✅', 'Akun kamu sudah aktif. Silakan login.'],
+  Rejected: ['❌', 'Pendaftaran ditolak. Hubungi administrator bila perlu.'], Locked: ['🔒', 'Akun terkunci. Hubungi administrator.'],
+  Inactive: ['⏸', 'Akun tidak aktif. Hubungi administrator.'] };
+async function checkStatus() {
+  const r = await api('registerStatus', reqId);
+  if (!r.success || !ST[r.status]) return;
+  $('ico').textContent = ST[r.status][0]; $('stPill').textContent = r.status; $('stTxt').textContent = ST[r.status][1];
+  $('toLogin').classList.toggle('hide', r.status !== 'Active');
+  if (r.status !== 'Pending') { clearInterval(pollSt); if (r.status === 'Active') save(null); }
+}
+
+// Lanjutkan sesi register bila halaman di-refresh
+(async () => {
+  let raw = null; try { raw = sessionStorage.getItem('dgm_req'); } catch (e) {}
+  if (!raw) return; const [id, link] = raw.split('|'); reqId = id;
+  const r = await api('registerStatus', id);
+  if (!r.success) return save(null);
+  if (r.status === 'Unverified') { $('botLink').href = link || '#'; goStep(2); } else goStep(3);
+})();
+</script>
+</body>
+</html>
